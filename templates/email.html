@@ -1,0 +1,67 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta http-equiv="X-UA-Compatible" content="IE=edge" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Account Verification</title>
+    <style>
+      body {
+        font-family: Arial, sans-serif;
+        background-color: #f4f4f4;
+        margin: 0;
+        padding: 0;
+      }
+      .email-container {
+        max-width: 600px;
+        margin: 0 auto;
+        padding: 20px;
+        background-color: white;
+        border: 1px solid #ddd;
+        border-radius: 8px;
+      }
+      .email-header {
+        background-color: #4caf50;
+        color: white;
+        padding: 10px;
+        border-radius: 8px 8px 0 0;
+        text-align: center;
+      }
+      .email-body {
+        padding: 20px;
+        font-size: 16px;
+      }
+      .otp {
+        font-size: 24px;
+        font-weight: bold;
+        color: #4caf50;
+      }
+      .footer {
+        margin-top: 20px;
+        font-size: 12px;
+        text-align: center;
+        color: #888;
+      }
+    </style>
+  </head>
+  <body>
+    <div class="email-container">
+      <div class="email-header">
+        <h2>Account Verification</h2>
+      </div>
+      <div class="email-body">
+        <p>Hi {{ name }},</p>
+        <p>Your OTP for verifying your account is:</p>
+        <p class="otp">{{ otp }}</p>
+        <p>
+          This OTP will expire in 10 minutes. Please use it to complete your
+          registration.
+        </p>
+        <p>If you did not request this, please ignore this email.</p>
+      </div>
+      <div class="footer">
+        <p>Thank you for using our service!</p>
+      </div>
+    </div>
+  </body>
+</html>
