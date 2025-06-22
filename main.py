@@ -43,7 +43,7 @@ class User(db.Model):
     phone = db.Column(db.String(20), unique=True, nullable=True)
     otp_code = db.Column(db.String(6), nullable=True)
     otp_created_at = db.Column(db.DateTime, nullable=True)
-    username = db.Column(db.Strong(100), unique=True, nullable=True)
+    username = db.Column(db.String(100), unique=True, nullable=True)
     password_hash = db.Column(db.String(200), nullable=True)
 
 
