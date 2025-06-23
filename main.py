@@ -1,95 +1,31 @@
-from twilio.rest import Client
-from flask_sqlalchemy import SQLAlchemy
-from flask_jwt_extended import create_access_token, get_jwt_identity, jwt_required, JWTManager
-from flask_cors import CORS
-from datetime import timedelta, datetime
-from flask import Flask, request, jsonify, render_template, redirect
-from flask_cors import CORS
-from flask_sqlalchemy import SQLAlchemy
-from flask_mail import Mail, Message
-from flasgger import Swagger
-from datetime import datetime, timedelta
-import random
-import os
-from flask_bcrypt import Bcrypt
-import threading
-import time
-from dotenv import load_dotenv
+from core.imports import (
+    os, time, json, hmac, base64, requests,
+    Flask, request, jsonify, render_template, redirect, Mail, Message,
+    create_access_token, JWTManager, get_jwt_identity, jwt_required,
+    Swagger, load_dotenv, threading,
+    datetime, timedelta, io, cv2, np, Image
+)
+from core.config import Config
+from core.extensions import db, jwt, mail, swagger, cors
+from core.models import User, TempUser, Preference
+from routes.auth_routes import auth_bp
+
+def create_app():
+    app = Flask(__name__)
+    app.config.from_object(Config)
+
+    db.init_app(app)
+    jwt.init_app(app)
+    mail.init_app(app)
+    swagger.init_app(app)
+    cors.init_app(app)
+
+    app.register_blueprint(auth_bp)
+    return app
+
+app = create_app()
 
 load_dotenv()
-
-app = Flask(__name__)
-app.config["SQLALCHEMY_DATABASE_URI"] = "sqlite:///everkonnect.db"
-app.config["SQLALCHEMY_TRACK_MODIFICATIONS"] = False
-app.config["JWT_SECRET_KEY"] = "super-secret"
-app.config["JWT_ACCESS_TOKEN_EXPIRES"] = timedelta(hours=24)
-
-jwt = JWTManager(app)
-db = SQLAlchemy(app)
-mail = Mail(app)
-bcrypt = Bcrypt(app)
-swagger = Swagger(app)
-
-CORS(app)
-
-MAIL_SERVER = 'smtp.zoho.com'
-MAIL_PORT = 587
-MAIL_USE_TLS = True
-MAIL_USERNAME = os.getenv("USERNAME_FOR_EMAIL")
-MAIL_PASSWORD = os.getenv("PASSWORD_FOR_EMAIL")
-MAIL_DEFAULT_SENDER = os.getenv("USERNAME_FOR_EMAIL")
-
-
-class TempUser(db.Model):
-    __tablename__ = 'temp_users'
-    
-    id = db.Column(db.Integer, primary_key=True)
-    email = db.Column(db.String(120), unique=True, nullable=True)
-    phone = db.Column(db.String(20), unique=True, nullable=True)
-    otp_code = db.Column(db.String(6), nullable=True)
-    otp_created_at = db.Column(db.DateTime, nullable=True)
-    created_at = db.Column(db.DateTime, default=datetime.utcnow)
-
-class User(db.Model):
-    id = db.Column(db.Integer, primary_key=True)
-    email = db.Column(db.String(100), unique=True, nullable=True)
-    phone = db.Column(db.String(20), unique=True, nullable=True)
-    #otp_code = db.Column(db.String(6), nullable=True)
-    #otp_created_at = db.Column(db.DateTime, nullable=True)
-    username = db.Column(db.String(100), unique=True, nullable=True)
-    password_hash = db.Column(db.String(200), nullable=True)
-    nickname = db.Column(db.String(100), nullable=True)
-    fullname = db.Column(db.String(150), nullable=True)
-    date_of_birth = db.Column(db.Date, nullable=True)
-    age_range = db.Column(db.String(50), nullable=True)
-    marital_status = db.Column(db.String(50), nullable=True)
-    country_of_origin = db.Column(db.String(100), nullable=True)
-    tribe = db.Column(db.String(100), nullable=True)
-    current_location = db.Column(db.String(100), nullable=True)
-    skin_tone = db.Column(db.String(50), nullable=True)
-
-    preferences = db.relationship('Preference', backref='user', uselist=False)
-
-
-class Preference(db.Model):
-    id = db.Column(db.Integer, primary_key=True)
-    user_id = db.Column(db.Integer, db.ForeignKey('user.id'), nullable=False)
-
-    height = db.Column(db.String(150), nullable=True)
-    eye_colour = db.Column(db.String(150), nullable=True)
-    body_type = db.Column(db.String(150), nullable=True)
-    hair_colour = db.Column(db.String(150), nullable=True)
-    hair_style = db.Column(db.String(150), nullable=True)
-    interest = db.Column(db.String(150), nullable=True)
-    hobbies = db.Column(db.String(150), nullable=True)
-    music = db.Column(db.String(150), nullable=True)
-    movies = db.Column(db.String(150), nullable=True)
-    activities = db.Column(db.String(150), nullable=True)
-    personality = db.Column(db.String(150), nullable=True)
-    religion = db.Column(db.String(150), nullable=True)
-    education = db.Column(db.String(150), nullable=True)
-    languages = db.Column(db.String(150), nullable=True)
-    values = db.Column(db.String(150), nullable=True)
 
 
 def cleanup_expired_temp_users():
@@ -116,275 +52,22 @@ def cleanup_expired_temp_users():
 cleanup_thread = threading.Thread(target=cleanup_expired_temp_users, daemon=True)
 cleanup_thread.start()
 
-def send_email_otp(to, subject, body):
-    msg = Message(subject=subject,
-                  recipients=[to])
-    msg.html = body
-    try:
-        mail.send(msg)
-    except Exception as e:
-        print(f"Error sending email: {str(e)}")
-
-def send_sms_otp(phone, otp):
-    account_sid = "your_twilio_sid"
-    auth_token = "your_twilio_auth_token"
-    client = Client(account_sid, auth_token)
-
-    client.messages.create(
-        body=f"Your verification code is {otp}.",
-        from_="+1234567890",  # your Twilio number
-        to=phone
-    )
 
 def model_to_dict(model):
     """Helper to convert a SQLAlchemy model to a dict."""
     return {column.name: getattr(model, column.name) for column in model.__table__.columns}
 
 
-@app.route('/api/auth', methods=["POST"])
-def auth():
-    """
-    Request OTP for authentication
-    ---
-    tags:
-      - Authentication
-    parameters:
-      - in: body
-        name: body
-        schema:
-          type: object
-          properties:
-            email:
-              type: string
-              example: "user@example.com"
-            phone:
-              type: string
-              example: "+1234567890"
-    responses:
-      200:
-        description: OTP sent successfully
-        schema:
-          type: object
-          properties:
-            message:
-              type: string
-              example: "OTP sent to user@example.com"
-      400:
-        description: Bad Request
-        schema:
-          type: object
-          properties:
-            error:
-              type: string
-    """
-    email = request.json.get('email')
-    phone = request.json.get('phone')
-    
-    if not email and not phone:
-        return jsonify({"error": "Email or phone is required"}), 400
-    
-    # Check if user already exists in main users table
-    existing_user = None
-    if email:
-        existing_user = User.query.filter_by(email=email).first()
-    elif phone:
-        existing_user = User.query.filter_by(phone=phone).first()
-    
-    if existing_user:
-        return jsonify({"error": "User already exists"}), 400
-    
-    # Find or create temp user
-    temp_user = None
-    if email:
-        temp_user = TempUser.query.filter_by(email=email).first()
-    elif phone:
-        temp_user = TempUser.query.filter_by(phone=phone).first()
-    
-    if not temp_user:
-        temp_user = TempUser(email=email, phone=phone)
-        db.session.add(temp_user)
-    
-    # Generate and save OTP
-    otp = str(random.randint(100000, 999999))
-    print(otp)
-    temp_user.otp_code = otp
-    temp_user.otp_created_at = datetime.utcnow()
-    db.session.commit()
-    
-    if email:
-        subject = "Your verification code"
-        body = f"<p>Your verification code is <strong>{otp}</strong></p>"
-        send_email_otp(email, subject, body)
-        return jsonify({"message": f"OTP sent to {email}"}), 200
-    elif phone:
-        send_sms_otp(phone, otp)
-        return jsonify({"message": f"OTP sent to {phone}"}), 200
-
-
-@app.route('/api/verify-otp', methods=['POST'])
-def verify_otp():
-    """
-    Verify OTP
-    ---
-    tags:
-      - Authentication
-    parameters:
-      - in: body
-        name: body
-        schema:
-          type: object
-          properties:
-            email:
-              type: string
-            phone:
-              type: string
-            otp:
-              type: string
-    responses:
-      200:
-        description: OTP verified successfully
-        schema:
-          type: object
-          properties:
-            message:
-              type: string
-              example: "OTP verified successfully"
-      400:
-        description: Bad request (invalid or expired OTP)
-        schema:
-          type: object
-          properties:
-            error:
-              type: string
-      404:
-        description: User not found
-        schema:
-          type: object
-          properties:
-            error:
-              type: string
-    """
-    email = request.json.get('email')
-    phone = request.json.get('phone')
-    otp = request.json.get('otp')
-
-    if not otp or (not email and not phone):
-        return jsonify({"error": "OTP and email or phone is required"}), 400
-
-    temp_user = None
-    if email:
-        temp_user = TempUser.query.filter_by(email=email).first()
-    elif phone:
-        temp_user = TempUser.query.filter_by(phone=phone).first()
-    
-    if not temp_user:
-        return jsonify({"error": "User not found"}), 404
-    
-    # Verify OTP
-    expiry_time = temp_user.otp_created_at + timedelta(minutes=5)
-    if temp_user.otp_code != otp:
-        return jsonify({"error": "Invalid OTP"}), 400
-    elif datetime.utcnow() > expiry_time:
-        return jsonify({"error": "OTP expired"}), 400
-    
-    # Move to main users table
-    user = User(email=temp_user.email, phone=temp_user.phone)
-    db.session.add(user)
-    
-    # Delete from temp table
-    db.session.delete(temp_user)
-    db.session.commit()
-    
-    return jsonify({"message": "OTP verified successfully"}), 200
-
-
-@app.route('/api/set-credentials', methods=['POST'])
-def set_credentials():
-    """
-    Set user credentials (username and password)
-    ---
-    tags:
-      - Authentication
-    parameters:
-      - in: body
-        name: body
-        required: true
-        schema:
-          type: object
-          properties:
-            email:
-              type: string
-              example: "user@example.com"
-            phone:
-              type: string
-              example: "+1234567890"
-            username:
-              type: string
-              example: "new_user"
-            password:
-              type: string
-              format: password
-              example: "Str0ngP@ssword!"
-    responses:
-      200:
-        description: Credentials saved successfully
-        schema:
-          type: object
-          properties:
-            message:
-              type: string
-              example: "Credentials saved successfully"
-      400:
-        description: Missing or invalid parameters
-        schema:
-          type: object
-          properties:
-            error:
-              type: string
-      404:
-        description: User not found
-        schema:
-          type: object
-          properties:
-            error:
-              type: string
-    """
-    email = request.json.get('email')
-    phone = request.json.get('phone')
-    username = request.json.get('username')
-    password = request.json.get('password')
-
-    if not username or not password or (not email and not phone):
-        return jsonify({"error": "username, password, and email or phone are required"}), 400
-
-    user = None
-    if email:
-        user = User.query.filter_by(email=email).first()
-    elif phone:
-        user = User.query.filter_by(phone=phone).first()
-
-    if not user:
-        return jsonify({"error": "User not found"}), 404
-
-    existing_user = User.query.filter_by(username=username).first()
-    if existing_user and existing_user.id != user.id:
-        return jsonify({"error": "Username already exists"}), 400
-
-    password_hash = bcrypt.generate_password_hash(password).decode('utf-8')
-    user.username = username
-    user.password_hash = password_hash
-    db.session.commit()
-
-    return jsonify({"message": "Credentials saved successfully"}), 200
-
-
 @app.route('/api/love/basic_info', methods=['POST'])
+@jwt_required()
 def love_registration():
     """
     User Basic Info Registration
     ---
     tags:
       - Love
+    security:
+      - bearerAuth: []
     consumes:
       - application/json
     parameters:
@@ -433,17 +116,28 @@ def love_registration():
               type: string
               example: Brown
     responses:
-      201:
-        description: User created successfully
+      200:
+        description: User info updated successfully
       400:
         description: Bad request
+      404:
+        description: User not found
     """
+    # Get user ID from JWT token
+    current_user_id = get_jwt_identity()
+    
     data = request.json
 
-    nickname = data.get('email')
-    fullname = data.get('phone')
-    dateOfBirth = data.get('username')
-    ageRange = data.get('password')
+    # Find the current user
+    user = User.query.get(current_user_id)
+    if not user:
+        return jsonify({"message": "User not found"}), 404
+
+    # Get the fields
+    nickname = data.get('nickname')
+    fullname = data.get('fullname')
+    dateOfBirth = data.get('dateOfBirth')
+    ageRange = data.get('ageRange')
     maritalStatus = data.get('maritalStatus')
     countryOfOrigin = data.get('countryOfOrigin')
     tribe = data.get('tribe')
@@ -460,28 +154,32 @@ def love_registration():
     except (ValueError, TypeError):
         return jsonify({"message": "dateOfBirth must be in YYYY-MM-DD format"}), 400
 
-    # Create and save the User
-    user = User(
-        nickname=nickname,
-        fullname=fullname,
-        date_of_birth=dob,
-        age_range=ageRange,
-        marital_status=maritalStatus,
-        country_of_origin=countryOfOrigin,
-        tribe=tribe,
-        current_location=currentLocation,
-        skin_tone=skinTone,
-    )
-    db.session.add(user)
+    # Update the user
+    user.nickname = nickname
+    user.fullname = fullname
+    user.date_of_birth = dob
+    user.age_range = ageRange
+    user.marital_status = maritalStatus
+    user.country_of_origin = countryOfOrigin
+    user.tribe = tribe
+    user.current_location = currentLocation
+    user.skin_tone = skinTone
+
     db.session.commit()
 
+    return jsonify({"message": "User info updated successfully"}), 200
+
+
 @app.route("/api/love/set_preferences", methods=["POST"])
+@jwt_required()
 def set_love_preferences():
     """
     Set User Love Preferences
     ---
     tags:
       - Love
+    security:
+      - bearerAuth: []
     consumes:
       - application/json
     parameters:
@@ -491,7 +189,6 @@ def set_love_preferences():
         schema:
           type: object
           required:
-            - user_id
             - height
             - eye_colour
             - body_type
@@ -508,9 +205,6 @@ def set_love_preferences():
             - languages
             - values
           properties:
-            user_id:
-              type: integer
-              example: 1
             height:
               type: string
               example: 180cm
@@ -561,63 +255,141 @@ def set_love_preferences():
         description: Preferences saved successfully
       400:
         description: Bad request
+      404:
+        description: User not found
     """
+    # Get user ID from JWT token
+    current_user_id = get_jwt_identity()
+    
     data = request.json
-    user_id=data.get("user_id")
 
-    if not user_id:
-        return jsonify({"message": "user_id is required"}), 400
+    # Verify user exists
+    user = User.query.get(current_user_id)
+    if not user:
+        return jsonify({"message": "User not found"}), 404
         
-
-    height=data.get('height'),
-    eye_colour=data.get('eye_colour'),
-    body_type=data.get('body_type'),
-    hair_colour=data.get('hair_colour'),
-    hair_style=data.get('hair_style'),
-    interest=data.get('interest'),
-    hobbies=data.get('hobbies'),
-    music=data.get('music'),
-    movies=data.get('movies'),
-    activities=data.get('activities'),
-    personality=data.get('personality'),
-    religion=data.get('religion'),
-    education=data.get('education'),
-    languages=data.get('languages'),
-    values=data.get('values')
+    height = data.get('height')
+    eye_colour = data.get('eye_colour')
+    body_type = data.get('body_type')
+    hair_colour = data.get('hair_colour')
+    hair_style = data.get('hair_style')
+    interest = data.get('interest')
+    hobbies = data.get('hobbies')
+    music = data.get('music')
+    movies = data.get('movies')
+    activities = data.get('activities')
+    personality = data.get('personality')
+    religion = data.get('religion')
+    education = data.get('education')
+    languages = data.get('languages')
+    values = data.get('values')
 
     required_fields = ["height", "eye_colour", "body_type", "hair_colour", "hair_style", "interest", "hobbies", "music", "movies", "activities", "personality", "religion", "education", "languages", "values"]
     if not all(data.get(field) for field in required_fields):
         return jsonify({"message": "Fill all fields"}), 400
 
-    preference = Preference(
-        user_id=user_id,
-        height=height,
-        eye_colour=eye_colour,
-        body_type=body_type,
-        hair_colour=hair_colour,
-        hair_style=hair_style,
-        interest=interest,
-        hobbies=hobbies,
-        music=music,
-        movies=movies,
-        activities=activities,
-        personality=personality,
-        religion=religion,
-        education=education,
-        languages=languages,
-        values=values
-    )
+    # Check if user already has preferences
+    existing_preference = Preference.query.filter_by(user_id=current_user_id).first()
+    
+    if existing_preference:
+        # Update existing preferences
+        existing_preference.height = height
+        existing_preference.eye_colour = eye_colour
+        existing_preference.body_type = body_type
+        existing_preference.hair_colour = hair_colour
+        existing_preference.hair_style = hair_style
+        existing_preference.interest = interest
+        existing_preference.hobbies = hobbies
+        existing_preference.music = music
+        existing_preference.movies = movies
+        existing_preference.activities = activities
+        existing_preference.personality = personality
+        existing_preference.religion = religion
+        existing_preference.education = education
+        existing_preference.languages = languages
+        existing_preference.values = values
+        message = "Preferences updated successfully"
+    else:
+        # Create new preferences
+        preference = Preference(
+            user_id=current_user_id,
+            height=height,
+            eye_colour=eye_colour,
+            body_type=body_type,
+            hair_colour=hair_colour,
+            hair_style=hair_style,
+            interest=interest,
+            hobbies=hobbies,
+            music=music,
+            movies=movies,
+            activities=activities,
+            personality=personality,
+            religion=religion,
+            education=education,
+            languages=languages,
+            values=values
+        )
+        db.session.add(preference)
+        message = "Preferences saved successfully"
 
-    db.session.add(preference)
     db.session.commit()
 
-    return jsonify({"message": "User and preferences saved successfully"}), 201
+    return jsonify({"message": message}), 200
 
 
 @app.route('/show_users')
 def show_users():
     users = User.query.all()
     return jsonify([model_to_dict(user) for user in users])
+
+
+@app.route('/api/verify-face', methods=['POST'])
+def verify_face():
+    """
+    Verify that the provided image contains at least one face
+    ---
+    parameters:
+      - in: body
+        name: body
+        schema:
+          type: object
+          properties:
+            face_image:
+              type: string
+              description: Base64-encoded face image
+              example: "<Base64 string>"
+    responses:
+      200:
+        description: Face detected successfully
+      400:
+        description: No face detected or bad image
+    """
+
+    data = request.get_json()
+    face_image_b64 = data.get('face_image')
+    if not face_image_b64:
+        return jsonify({"error": "face_image is required"}), 400
+
+    try:
+        # Decode the base64 image
+        image_data = base64.b64decode(face_image_b64)
+        image = Image.open(io.BytesIO(image_data)).convert('RGB')
+        image_np = np.array(image)
+
+        # Load OpenCV's built-in face detector
+        face_cascade = cv2.CascadeClassifier(
+            cv2.data.haarcascades + 'haarcascade_frontalface_default.xml'
+        )
+        gray = cv2.cvtColor(image_np, cv2.COLOR_RGB2GRAY)
+        faces = face_cascade.detectMultiScale(gray, scaleFactor=1.1, minNeighbors=5)
+
+        if len(faces) == 0:
+            return jsonify({"error": "No face detected"}), 400
+        else:
+            return jsonify({"message": f"{len(faces)} face(s) detected"}), 200
+
+    except Exception as e:
+        return jsonify({"error": f"Failed to process image: {str(e)}"}), 400
 
 
 @app.route('/show_preferences')
