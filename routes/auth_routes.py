@@ -1,12 +1,11 @@
 from core.imports import (
-    bcrypt,
     request, jsonify, Message,
     create_access_token, JWTManager, get_jwt_identity, jwt_required,
     datetime, timedelta, random, Client, Blueprint
 )
 from flask import Flask
 from core.config import Config
-from core.extensions import db, mail
+from core.extensions import db, mail, bcrypt
 from core.models import User, TempUser
 
 
