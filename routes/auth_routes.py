@@ -1,15 +1,14 @@
 from core.imports import (
-    os, time, uuid, json, hmac, bcrypt, base64, requests,
-    Flask, request, jsonify, render_template, redirect, CORS, SQLAlchemy, Mail, Message,
+    bcrypt,
+    request, jsonify, Message,
     create_access_token, JWTManager, get_jwt_identity, jwt_required,
-    Swagger, load_dotenv,
-    datetime, timedelta, random, string, Client
+    datetime, timedelta, random, Client, Blueprint
 )
 from flask import Flask
 from core.config import Config
-from core.extensions import db, jwt, mail, swagger, cors
-from core.models import User, TempUser, Preference
-from flask import Blueprint, jsonify
+from core.extensions import db, mail
+from core.models import User, TempUser
+
 
 auth_bp = Blueprint('auth', __name__)
 
