@@ -1,0 +1,123 @@
+
+# Option 2: Using APScheduler (Recommended - more robust)
+from apscheduler.schedulers.background import BackgroundScheduler
+import atexit
+
+def scheduled_cleanup():
+    """Scheduled cleanup function"""
+    try:
+        with app.app_context():
+            expiry_time = datetime.utcnow() - timedelta(hours=1)
+            expired_users = TempUser.query.filter(TempUser.created_at < expiry_time).all()
+            
+            if expired_users:
+                for user in expired_users:
+                    db.session.delete(user)
+                db.session.commit()
+                print(f"Scheduled cleanup: Removed {len(expired_users)} expired temp users")
+    except Exception as e:
+        print(f"Scheduled cleanup error: {e}")
+
+# Initialize scheduler
+scheduler = BackgroundScheduler()
+scheduler.add_job(
+    func=scheduled_cleanup,
+    trigger="interval",
+    minutes=30,  # Run every 30 minutes
+    id='temp_user_cleanup'
+)
+scheduler.start()
+
+# Shut down scheduler on app exit
+atexit.register(lambda: scheduler.shutdown())
+
+# Option 3: Cleanup on each auth request (Lightweight approach)
+def cleanup_on_request():
+    """Clean up expired users on each auth request"""
+    try:
+        # Only run cleanup 10% of the time to avoid overhead
+        if random.randint(1, 10) == 1:
+            expiry_time = datetime.utcnow() - timedelta(hours=1)
+            expired_count = TempUser.query.filter(TempUser.created_at < expiry_time).delete()
+            if expired_count > 0:
+                db.session.commit()
+                print(f"Request cleanup: Removed {expired_count} expired temp users")
+    except Exception as e:
+        print(f"Request cleanup error: {e}")
+
+
+# Add a cleanup job to remove expired temp users
+@app.route('/api/cleanup-temp-users', methods=['POST'])
+def cleanup_temp_users():
+    """Remove expired temp users (older than 1 hour)"""
+    expiry_time = datetime.utcnow() - timedelta(hours=1)
+    expired_users = TempUser.query.filter(TempUser.created_at < expiry_time).all()
+    
+    for user in expired_users:
+        db.session.delete(user)
+    
+    db.session.commit()
+    return jsonify({"message": f"Cleaned up {len(expired_users)} expired temp users"})
+
+
+####################################Google auth#################33
+from authlib.integrations.flask_client import OAuth
+
+oauth = OAuth(app)
+google = oauth.register(
+    name='google',
+    client_id=os.environ.get('GOOGLE_CLIENT_ID'),
+    client_secret=os.environ.get('GOOGLE_CLIENT_SECRET'),
+    access_token_url='https://accounts.google.com/o/oauth2/token',
+    access_token_params=None,
+    authorize_url='https://accounts.google.com/o/oauth2/auth',
+    authorize_params={'scope': 'openid profile email'},
+    api_base_url='https://www.googleapis.com/oauth2/v1/',
+    client_kwargs={'scope': 'openid profile email'},
+)
+
+
+
+@app.route('/api/auth/google')
+def auth_google():
+    """Redirect user to Google's OAuth2 authorization page"""
+    return google.authorize_redirect(
+        redirect_uri=url_for('auth_google_callback', _external=True)
+    )
+
+@app.route('/api/auth/google/callback')
+def auth_google_callback():
+    """Handle Google OAuth2 callback and signup/login the user"""
+    token = google.authorize_access_token()
+    resp = google.get('userinfo')
+    profile = resp.json()
+    email = profile.get('email')
+    google_id = profile.get('id')
+    name = profile.get('name')
+    picture = profile.get('picture')
+
+    if not email:
+        return jsonify({"error": "Google login failed: no email found"}), 400
+
+    # Check if user exists
+    user = User.query.filter_by(email=email).first()
+
+    if not user:
+        # Create new user record
+        user = User(
+            email=email,
+            username=email.split('@')[0],  # or generate a unique one
+            google_id=google_id,
+            profile_picture=picture,
+        )
+        db.session.add(user)
+        db.session.commit()
+
+    # Here you'd generate your auth token (e.g. JWT) as per your app's convention
+    token = generate_jwt_for_user(user)  # implement this
+
+    return jsonify({"message": "Google signup/login successful", "token": token}), 200
+
+
+
+

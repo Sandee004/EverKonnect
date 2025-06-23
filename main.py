@@ -12,6 +12,8 @@ from datetime import datetime, timedelta
 import random
 import os
 from flask_bcrypt import Bcrypt
+import threading
+import time
 from dotenv import load_dotenv
 
 load_dotenv()
@@ -38,12 +40,22 @@ MAIL_PASSWORD = os.getenv("PASSWORD_FOR_EMAIL")
 MAIL_DEFAULT_SENDER = os.getenv("USERNAME_FOR_EMAIL")
 
 
+class TempUser(db.Model):
+    __tablename__ = 'temp_users'
+    
+    id = db.Column(db.Integer, primary_key=True)
+    email = db.Column(db.String(120), unique=True, nullable=True)
+    phone = db.Column(db.String(20), unique=True, nullable=True)
+    otp_code = db.Column(db.String(6), nullable=True)
+    otp_created_at = db.Column(db.DateTime, nullable=True)
+    created_at = db.Column(db.DateTime, default=datetime.utcnow)
+
 class User(db.Model):
     id = db.Column(db.Integer, primary_key=True)
     email = db.Column(db.String(100), unique=True, nullable=True)
     phone = db.Column(db.String(20), unique=True, nullable=True)
-    otp_code = db.Column(db.String(6), nullable=True)
-    otp_created_at = db.Column(db.DateTime, nullable=True)
+    #otp_code = db.Column(db.String(6), nullable=True)
+    #otp_created_at = db.Column(db.DateTime, nullable=True)
     username = db.Column(db.String(100), unique=True, nullable=True)
     password_hash = db.Column(db.String(200), nullable=True)
     nickname = db.Column(db.String(100), nullable=True)
@@ -79,6 +91,31 @@ class Preference(db.Model):
     languages = db.Column(db.String(150), nullable=True)
     values = db.Column(db.String(150), nullable=True)
 
+
+def cleanup_expired_temp_users():
+    """Background function to clean expired temp users"""
+    while True:
+        try:
+            with app.app_context():
+                expiry_time = datetime.utcnow() - timedelta(hours=1)
+                expired_users = TempUser.query.filter(TempUser.created_at < expiry_time).all()
+                
+                if expired_users:
+                    for user in expired_users:
+                        db.session.delete(user)
+                    db.session.commit()
+                    print(f"Cleaned up {len(expired_users)} expired temp users")
+                
+                # Sleep for 30 minutes before next cleanup
+                time.sleep(3600)  # 1800 seconds = 30 minutes
+        except Exception as e:
+            print(f"Cleanup error: {e}")
+            time.sleep(300)  # Wait 5 minutes on error
+
+# Start cleanup thread when app starts
+cleanup_thread = threading.Thread(target=cleanup_expired_temp_users, daemon=True)
+cleanup_thread.start()
+
 def send_email_otp(to, subject, body):
     msg = Message(subject=subject,
                   recipients=[to])
@@ -98,6 +135,11 @@ def send_sms_otp(phone, otp):
         from_="+1234567890",  # your Twilio number
         to=phone
     )
+
+def model_to_dict(model):
+    """Helper to convert a SQLAlchemy model to a dict."""
+    return {column.name: getattr(model, column.name) for column in model.__table__.columns}
+
 
 @app.route('/api/auth', methods=["POST"])
 def auth():
@@ -137,27 +179,38 @@ def auth():
     """
     email = request.json.get('email')
     phone = request.json.get('phone')
-
+    
     if not email and not phone:
         return jsonify({"error": "Email or phone is required"}), 400
-
-    # Find existing user or create a new one
-    user = None
+    
+    # Check if user already exists in main users table
+    existing_user = None
     if email:
-        user = User.query.filter_by(email=email).first()
+        existing_user = User.query.filter_by(email=email).first()
     elif phone:
-        user = User.query.filter_by(phone=phone).first()
-
-    if not user:
-        user = User(email=email, phone=phone)
-        db.session.add(user)
-
+        existing_user = User.query.filter_by(phone=phone).first()
+    
+    if existing_user:
+        return jsonify({"error": "User already exists"}), 400
+    
+    # Find or create temp user
+    temp_user = None
+    if email:
+        temp_user = TempUser.query.filter_by(email=email).first()
+    elif phone:
+        temp_user = TempUser.query.filter_by(phone=phone).first()
+    
+    if not temp_user:
+        temp_user = TempUser(email=email, phone=phone)
+        db.session.add(temp_user)
+    
+    # Generate and save OTP
     otp = str(random.randint(100000, 999999))
-    user.otp_code = otp
-    user.otp_created_at = datetime.utcnow()
+    print(otp)
+    temp_user.otp_code = otp
+    temp_user.otp_created_at = datetime.utcnow()
     db.session.commit()
-
-  
+    
     if email:
         subject = "Your verification code"
         body = f"<p>Your verification code is <strong>{otp}</strong></p>"
@@ -218,27 +271,30 @@ def verify_otp():
     if not otp or (not email and not phone):
         return jsonify({"error": "OTP and email or phone is required"}), 400
 
-    user = None
+    temp_user = None
     if email:
-        user = User.query.filter_by(email=email).first()
+        temp_user = TempUser.query.filter_by(email=email).first()
     elif phone:
-        user = User.query.filter_by(phone=phone).first()
-
-    if not user:
+        temp_user = TempUser.query.filter_by(phone=phone).first()
+    
+    if not temp_user:
         return jsonify({"error": "User not found"}), 404
-
-
-    expiry_time = user.otp_created_at + timedelta(minutes=5)
-    if user.otp_code != otp:
+    
+    # Verify OTP
+    expiry_time = temp_user.otp_created_at + timedelta(minutes=5)
+    if temp_user.otp_code != otp:
         return jsonify({"error": "Invalid OTP"}), 400
     elif datetime.utcnow() > expiry_time:
         return jsonify({"error": "OTP expired"}), 400
-
     
-    user.otp_code = None
-    user.otp_created_at = None
+    # Move to main users table
+    user = User(email=temp_user.email, phone=temp_user.phone)
+    db.session.add(user)
+    
+    # Delete from temp table
+    db.session.delete(temp_user)
     db.session.commit()
-
+    
     return jsonify({"message": "OTP verified successfully"}), 200
 
 
@@ -557,6 +613,30 @@ def set_love_preferences():
 
     return jsonify({"message": "User and preferences saved successfully"}), 201
 
+
+@app.route('/show_users')
+def show_users():
+    users = User.query.all()
+    return jsonify([model_to_dict(user) for user in users])
+
+
+@app.route('/show_preferences')
+def show_preferences():
+    preferences = Preference.query.all()
+    return jsonify([model_to_dict(pref) for pref in preferences])
+
+
+@app.route('/show_users_and_preferences')
+def show_users_and_preferences():
+    users = User.query.all()
+    result = []
+    for user in users:
+        user_data = model_to_dict(user)
+        # Add preference if it exists
+        if user.preferences:
+            user_data['preferences'] = model_to_dict(user.preferences)
+        result.append(user_data)
+    return jsonify(result)
 
 if __name__ == "__main__":
     with app.app_context():
