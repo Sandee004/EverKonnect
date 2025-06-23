@@ -1,6 +1,6 @@
 from core.imports import (
-    os, time, json, hmac, base64, requests,
-    Flask, request, jsonify, render_template, redirect, Mail, Message,
+    os, time, base64,
+    Flask, request, jsonify,
     create_access_token, JWTManager, get_jwt_identity, jwt_required,
     Swagger, load_dotenv, threading,
     datetime, timedelta, io, cv2, np, Image
