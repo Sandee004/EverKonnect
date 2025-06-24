@@ -6,7 +6,7 @@ from core.imports import (
     datetime, timedelta, io, cv2, np, Image, date
 )
 from core.config import Config
-from core.extensions import db, jwt, mail, swagger, cors, bcrypt
+from core.extensions import db, jwt, mail, swagger, cors, bcrypt, oauth
 from core.models import User, TempUser, UserPersonality, MatchPreference
 from routes.auth_routes import auth_bp
 
@@ -20,6 +20,7 @@ def create_app():
     swagger.init_app(app)
     cors.init_app(app)
     bcrypt.init_app(app)
+    oauth.init_app(app)
 
     app.register_blueprint(auth_bp)
     return app

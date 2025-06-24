@@ -1,15 +1,16 @@
 from core.imports import (
     request, jsonify, Message,
     create_access_token, JWTManager, get_jwt_identity, jwt_required,
-    datetime, timedelta, random, Client, Blueprint, base64, io, np, Image, cv2
+    datetime, timedelta, random, Client, Blueprint, base64, io, np, Image, cv2, redirect, url_for, os, load_dotenv
 )
 from flask import Flask
 from core.config import Config
-from core.extensions import db, mail, bcrypt
+from core.extensions import db, mail, bcrypt, oauth
 from core.models import User, TempUser
-
+from authlib.integrations.flask_client import OAuth
 
 auth_bp = Blueprint('auth', __name__)
+load_dotenv()
 
 
 def send_email_otp(to, subject, body):
@@ -435,16 +436,10 @@ def get_user_profile():
 
 
 
-
-from authlib.integrations.flask_client import OAuth
-from flask import current_app, url_for, redirect, request, jsonify
-
-# Configure OAuth
-oauth = OAuth(current_app)
 linkedin = oauth.register(
     name='linkedin',
-    client_id=current_app.config['LINKEDIN_CLIENT_ID'],
-    client_secret=current_app.config['LINKEDIN_CLIENT_SECRET'],
+    client_id = os.getenv("LINKEDIN_CLIENT_ID"),
+    client_secret = os.getenv("LINKEDIN_CLIENT_SECRET"),
     access_token_url='https://www.linkedin.com/oauth/v2/accessToken',
     authorize_url='https://www.linkedin.com/oauth/v2/authorization',
     client_kwargs={'scope': 'r_liteprofile r_emailaddress'}
@@ -495,8 +490,8 @@ def linkedin_callback():
 
 google = oauth.register(
     name='google',
-    client_id=current_app.config['GOOGLE_CLIENT_ID'],
-    client_secret=current_app.config['GOOGLE_CLIENT_SECRET'],
+    client_id = os.getenv("GOOGLE_CLIENT_ID"),
+    client_secret = os.getenv("GOGGLE_CLIENT_SECRET"),
     access_token_url='https://oauth2.googleapis.com/token',
     authorize_url='https://accounts.google.com/o/oauth2/auth',
     api_base_url='https://www.googleapis.com/oauth2/v2/',
@@ -547,8 +542,8 @@ def google_callback():
 
 facebook = oauth.register(
     name='facebook',
-    client_id=current_app.config['FACEBOOK_APP_ID'],
-    client_secret=current_app.config['FACEBOOK_APP_SECRET'],
+    client_id = os.getenv("FACEBOOK_APP_ID"),
+    client_secret = os.getenv("FACEBOOK_APP_SECRET"),
     access_token_url='https://graph.facebook.com/v17.0/oauth/access_token',
     authorize_url='https://www.facebook.com/v17.0/dialog/oauth',
     api_base_url='https://graph.facebook.com/v17.0/',
