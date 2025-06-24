@@ -431,3 +431,158 @@ def get_user_profile():
     }
     
     return jsonify(user_data), 200
+
+
+
+
+
+from authlib.integrations.flask_client import OAuth
+from flask import current_app, url_for, redirect, request, jsonify
+
+# Configure OAuth
+oauth = OAuth(current_app)
+linkedin = oauth.register(
+    name='linkedin',
+    client_id=current_app.config['LINKEDIN_CLIENT_ID'],
+    client_secret=current_app.config['LINKEDIN_CLIENT_SECRET'],
+    access_token_url='https://www.linkedin.com/oauth/v2/accessToken',
+    authorize_url='https://www.linkedin.com/oauth/v2/authorization',
+    client_kwargs={'scope': 'r_liteprofile r_emailaddress'}
+)
+
+@auth_bp.route('/api/linkedin/login', methods=['GET'])
+def linkedin_login():
+    """Redirect the user to LinkedIn's authorization page"""
+    redirect_uri = url_for('auth.linkedin_callback', _external=True)
+    return linkedin.authorize_redirect(redirect_uri)
+
+@auth_bp.route('/api/linkedin/callback', methods=['GET'])
+def linkedin_callback():
+    """Handle the callback from LinkedIn"""
+    token = linkedin.authorize_access_token()
+    # Fetch profile info
+    profile = linkedin.get('https://api.linkedin.com/v2/me').json()
+    email_data = linkedin.get(
+        'https://api.linkedin.com/v2/emailAddress?q=members&projection=(elements*(handle~))'
+    ).json()
+
+    # Extract data
+    first_name = profile.get('localizedFirstName')
+    last_name = profile.get('localizedLastName')
+    email = email_data['elements'][0]['handle~']['emailAddress']
+
+    # Check if user exists or create
+    user = User.query.filter_by(email=email).first()
+    if not user:
+        user = User(email=email, username=f"{first_name}_{last_name}")
+        db.session.add(user)
+        db.session.commit()
+
+    access_token = create_access_token(
+        identity=user.id,
+        expires_delta=timedelta(hours=24)
+    )
+
+    return jsonify(
+        message="Login successful",
+        access_token=access_token,
+        user_id=user.id,
+        email=email,
+        first_name=first_name,
+        last_name=last_name
+    ), 200
+
+
+google = oauth.register(
+    name='google',
+    client_id=current_app.config['GOOGLE_CLIENT_ID'],
+    client_secret=current_app.config['GOOGLE_CLIENT_SECRET'],
+    access_token_url='https://oauth2.googleapis.com/token',
+    authorize_url='https://accounts.google.com/o/oauth2/auth',
+    api_base_url='https://www.googleapis.com/oauth2/v2/',
+    client_kwargs={'scope': 'openid profile email'},
+)
+
+@auth_bp.route('/api/google/login')
+def google_login():
+    """Redirect user to Google's OAuth consent screen."""
+    redirect_uri = url_for('auth.google_callback', _external=True)
+    return google.authorize_redirect(redirect_uri)
+
+@auth_bp.route('/api/google/callback')
+def google_callback():
+    """Handle Google's callback with auth code and fetch profile info."""
+    token = google.authorize_access_token()
+    resp = google.get('userinfo')
+    profile = resp.json()
+    email = profile.get('email')
+    first_name = profile.get('given_name')
+    last_name = profile.get('family_name')
+    picture = profile.get('picture')
+    google_id = profile.get('id')
+
+    # Check if user exists
+    user = User.query.filter_by(email=email).first()
+    if not user:
+        user = User(email=email, username=email.split('@')[0])
+        db.session.add(user)
+        db.session.commit()
+
+    access_token = create_access_token(
+        identity=user.id,
+        expires_delta=timedelta(hours=24)
+    )
+
+    return jsonify(
+        message='Login successful',
+        access_token=access_token,
+        user_id=user.id,
+        email=email,
+        first_name=first_name,
+        last_name=last_name,
+        picture=picture,
+        google_id=google_id
+    ), 200
+
+
+facebook = oauth.register(
+    name='facebook',
+    client_id=current_app.config['FACEBOOK_APP_ID'],
+    client_secret=current_app.config['FACEBOOK_APP_SECRET'],
+    access_token_url='https://graph.facebook.com/v17.0/oauth/access_token',
+    authorize_url='https://www.facebook.com/v17.0/dialog/oauth',
+    api_base_url='https://graph.facebook.com/v17.0/',
+    client_kwargs={'scope': 'email,public_profile'},
+)
+
+@auth_bp.route('/api/facebook/login')
+def facebook_login():
+    return facebook.authorize_redirect(
+        redirect_uri=url_for('auth.facebook_callback', _external=True)
+    )
+
+@auth_bp.route('/api/facebook/callback')
+def facebook_callback():
+    token = facebook.authorize_access_token()
+    resp = facebook.get('me?fields=id,name,email')
+    profile = resp.json()
+
+    email = profile.get('email')
+    facebook_id = profile.get('id')
+    name = profile.get('name')
+
+    user = User.query.filter_by(email=email).first()
+    if not user:
+        user = User(email=email, username=name)
+        db.session.add(user)
+        db.session.commit()
+
+    access_token = create_access_token(identity=user.id)
+    return jsonify(
+        message='Login successful',
+        access_token=access_token,
+        user_id=user.id,
+        email=email,
+        name=name,
+        facebook_id=facebook_id
+    )
