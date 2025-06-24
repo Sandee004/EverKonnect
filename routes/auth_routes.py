@@ -1,7 +1,7 @@
 from core.imports import (
     request, jsonify, Message,
     create_access_token, JWTManager, get_jwt_identity, jwt_required,
-    datetime, timedelta, random, Client, Blueprint
+    datetime, timedelta, random, Client, Blueprint, base64, io, np, Image, cv2
 )
 from flask import Flask
 from core.config import Config
@@ -265,6 +265,55 @@ def set_credentials():
     db.session.commit()
 
     return jsonify({"message": "Credentials saved successfully"}), 200
+
+
+@auth_bp.route('/api/verify-face', methods=['POST'])
+def verify_face():
+    """
+    Verify that the provided image contains at least one face
+    ---
+    parameters:
+      - in: body
+        name: body
+        schema:
+          type: object
+          properties:
+            face_image:
+              type: string
+              description: Base64-encoded face image
+              example: "<Base64 string>"
+    responses:
+      200:
+        description: Face detected successfully
+      400:
+        description: No face detected or bad image
+    """
+
+    data = request.get_json()
+    face_image_b64 = data.get('face_image')
+    if not face_image_b64:
+        return jsonify({"error": "face_image is required"}), 400
+
+    try:
+        # Decode the base64 image
+        image_data = base64.b64decode(face_image_b64)
+        image = Image.open(io.BytesIO(image_data)).convert('RGB')
+        image_np = np.array(image)
+
+        # Load OpenCV's built-in face detector
+        face_cascade = cv2.CascadeClassifier(
+            cv2.data.haarcascades + 'haarcascade_frontalface_default.xml'
+        )
+        gray = cv2.cvtColor(image_np, cv2.COLOR_RGB2GRAY)
+        faces = face_cascade.detectMultiScale(gray, scaleFactor=1.1, minNeighbors=5)
+
+        if len(faces) == 0:
+            return jsonify({"error": "No face detected"}), 400
+        else:
+            return jsonify({"message": f"{len(faces)} face(s) detected"}), 200
+
+    except Exception as e:
+        return jsonify({"error": f"Failed to process image: {str(e)}"}), 400
 
 
 @auth_bp.route('/api/login', methods=['POST'])
