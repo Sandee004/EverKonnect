@@ -28,10 +28,11 @@ class User(db.Model):
     current_location = db.Column(db.String(100), nullable=True)
     skin_tone = db.Column(db.String(50), nullable=True)
 
-    preferences = db.relationship('Preference', backref='user', uselist=False)
+    preferences = db.relationship('UserPersonality', backref='user', uselist=False)
+    matchpreference = db.relationship('MatchPreference', backref='user', uselist=False)
 
 
-class Preference(db.Model):
+class UserPersonality(db.Model):
     id = db.Column(db.Integer, primary_key=True)
     user_id = db.Column(db.Integer, db.ForeignKey('user.id'), nullable=False)
 
@@ -50,3 +51,30 @@ class Preference(db.Model):
     education = db.Column(db.String(150), nullable=True)
     languages = db.Column(db.String(150), nullable=True)
     values = db.Column(db.String(150), nullable=True)
+
+
+class MatchPreference(db.Model):
+    id = db.Column(db.Integer, primary_key=True)
+    user_id = db.Column(db.Integer, db.ForeignKey('user.id'), nullable=False)
+
+    age_range = db.Column(db.String(50), nullable=True)
+    marital_status = db.Column(db.String(50), nullable=True)
+    country_of_origin = db.Column(db.String(100), nullable=True)
+    tribe = db.Column(db.String(100), nullable=True)
+    current_location = db.Column(db.String(100), nullable=True)
+    skin_tone = db.Column(db.String(50), nullable=True)
+    height = db.Column(db.String(150), nullable=True)
+    eye_colour = db.Column(db.String(150), nullable=True)
+    body_type = db.Column(db.String(150), nullable=True)
+    hair_colour = db.Column(db.String(150), nullable=True)
+    hair_style = db.Column(db.String(150), nullable=True)
+    religion = db.Column(db.String(150), nullable=True)
+    education = db.Column(db.String(150), nullable=True)
+    languages = db.Column(db.String(150), nullable=True)
+    values = db.Column(db.String(150), nullable=True)
+    interest = db.Column(db.String(150), nullable=True)
+    hobbies = db.Column(db.String(150), nullable=True)
+    music = db.Column(db.String(150), nullable=True)
+    movies = db.Column(db.String(150), nullable=True)
+    activities = db.Column(db.String(150), nullable=True)
+    personality = db.Column(db.String(150), nullable=True)

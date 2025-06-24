@@ -101,6 +101,7 @@ def auth():
     temp_user.otp_code = otp
     temp_user.otp_created_at = datetime.utcnow()
     db.session.commit()
+    print("Added entry to db")
     
     if email:
         subject = "Your verification code"
@@ -198,49 +199,55 @@ def verify_otp():
 @jwt_required()
 def set_credentials():
     """
-    Set user credentials (username and password)
-    ---
-    tags:
-      - Authentication
-    security:
-      - bearerAuth: []
-    parameters:
-      - in: body
-        name: body
-        required: true
-        schema:
-          type: object
-          properties:
-            username:
-              type: string
-              example: "new_user"
-            password:
-              type: string
-              format: password
-              example: "Str0ngP@ssword!"
-    responses:
-      200:
-        description: Credentials saved successfully
-        schema:
-          type: object
-          properties:
-            message:
-              type: string
-              example: "Credentials saved successfully"
-      400:
-        description: Missing or invalid parameters
-        schema:
-          type: object
-          properties:
-            error:
-              type: string
-      404:
-        description: User not found
-        schema:
-          type: object
-          properties:
-            error:
-              type: string
+Set user credentials (username and password)
+---
+tags:
+  - Authentication
+security:
+  - Bearer: []
+parameters:
+  - name: Authorization
+    in: header
+    description: JWT token as Bearer <your_token>
+    required: true
+    type: string
+    example: "Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6..."
+  - name: body
+    in: body
+    required: true
+    schema:
+      type: object
+      properties:
+        username:
+          type: string
+          example: "new_user"
+        password:
+          type: string
+          format: password
+          example: "Str0ngP@ssword!"
+responses:
+  200:
+    description: Credentials saved successfully
+    schema:
+      type: object
+      properties:
+        message:
+          type: string
+          example: "Credentials saved successfully"
+  400:
+    description: Missing or invalid parameters
+    schema:
+      type: object
+      properties:
+        error:
+          type: string
+  404:
+    description: User not found
+    schema:
+      type: object
+      properties:
+        error:
+          type: string
     """
     # Get user ID from JWT token
     current_user_id = get_jwt_identity()
@@ -386,7 +393,15 @@ def get_user_profile():
     tags:
       - User
     security:
-      - bearerAuth: []
+      - Bearer: []
+    parameters:
+      - name: Authorization
+        in: header
+        description: 'JWT token as: Bearer <your_token>'
+        required: true
+        schema:
+          type: string
+          example: "Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6..."
     responses:
       200:
         description: User profile retrieved successfully

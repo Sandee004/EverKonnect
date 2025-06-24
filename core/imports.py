@@ -8,7 +8,7 @@ from flask_cors import CORS
 from flask_sqlalchemy import SQLAlchemy
 from flask_mail import Mail, Message
 from flasgger import Swagger
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, date
 import random
 import os
 from flask_bcrypt import Bcrypt
