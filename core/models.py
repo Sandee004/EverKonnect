@@ -18,6 +18,7 @@ class User(db.Model):
     phone = db.Column(db.String(20), unique=True, nullable=True)
     username = db.Column(db.String(100), unique=True, nullable=True)
     password_hash = db.Column(db.String(200), nullable=True)
+    #is_business_user = db.Column(db.Boolean, default=False)
 
     love_basic_info = db.relationship('LoveBasicInfo', backref='user', uselist=False)
     personality = db.relationship('UserPersonality', backref='user', uselist=False)
@@ -113,3 +114,12 @@ class BusinessCredentials(db.Model):
     description = db.Column(db.Text, nullable=True)
     businessInterests = db.Column(db.Text, nullable=True)
 
+
+class Connection(db.Model):
+    id = db.Column(db.Integer, primary_key=True)
+    sender_id = db.Column(db.Integer, db.ForeignKey('user.id'), nullable=False)
+    receiver_id = db.Column(db.Integer, db.ForeignKey('user.id'), nullable=False)
+    status = db.Column(db.String(20), nullable=False, default='pending')  # 'pending', 'accepted', 'declined'
+
+    sender = db.relationship('User', foreign_keys=[sender_id], backref='sent_connections')
+    receiver = db.relationship('User', foreign_keys=[receiver_id], backref='received_connections')

@@ -5,7 +5,7 @@ from core.imports import (
 )
 from core.config import Config
 from core.extensions import db
-from core.models import User, BusinessBasicInfo, BusinessCredentials
+from core.models import User, BusinessBasicInfo, BusinessCredentials, Connection
 
 
 business_bp = Blueprint('business', __name__)
@@ -258,6 +258,7 @@ responses:
 
 @business_bp.route('/api/business/homepage', methods=['GET'])
 def get_users_with_business():
+    business_users = User.query.filter_by(is_business_user=True).all()
     # inner join returns only users who have a business_basic_info
     users = User.query.join(BusinessBasicInfo).all()
 
@@ -286,4 +287,77 @@ def get_users_with_business():
             }
         )
 
+    return jsonify(result), 200
+
+
+# 📍 Send a connection request
+@business_bp.route('/api/connect', methods=['POST'])
+def send_connection():
+    sender_id = request.json.get('sender_id')
+    receiver_id = request.json.get('receiver_id')
+    
+    sender = User.query.get(sender_id)
+    receiver = User.query.get(receiver_id)
+    if not sender or not receiver:
+        return jsonify({"error": "User not found"}), 404
+
+    # Check if a connection already exists in either direction
+    existing = Connection.query.filter(
+        ((Connection.sender_id == sender_id) & (Connection.receiver_id == receiver_id)) |
+        ((Connection.sender_id == receiver_id) & (Connection.receiver_id == sender_id))
+    ).first()
+    if existing:
+        return jsonify({"error": "Connect request already exists"}), 400
+
+    # Create new connection request
+    connection = Connection(sender_id=sender_id, receiver_id=receiver_id, status='pending')
+    db.session.add(connection)
+    db.session.commit()
+
+    return jsonify({"message": "Connection request sent"}), 201
+
+# 📍 View incoming (received) requests
+@business_bp.route('/api/connections/pending/<int:user_id>', methods=['GET'])
+def view_pending(user_id):
+    requests_ = Connection.query.filter_by(receiver_id=user_id, status='pending').all()
+    result = [
+        {
+            "id": req.id,
+            "sender_id": req.sender_id,
+            "status": req.status
+        }
+        for req in requests_
+    ]
+    return jsonify(result), 200
+
+# 📍 Accept a connection request
+@business_bp.route('/connections/accept/<int:connection_id>', methods=['POST'])
+def accept_connection(connection_id):
+    connection = Connection.query.get_or_404(connection_id)
+    connection.status = 'accepted'
+    db.session.commit()
+    return jsonify({"message": "Connection accepted"}), 200
+
+# 📍 Decline a connection request
+@business_bp.route('/connections/decline/<int:connection_id>', methods=['POST'])
+def decline_connection(connection_id):
+    connection = Connection.query.get_or_404(connection_id)
+    connection.status = 'declined'
+    db.session.commit()
+    return jsonify({"message": "Connection declined"}), 200
+
+# 📍 View accepted connections
+@business_bp.route('/connections/accepted/<int:user_id>', methods=['GET'])
+def view_accepted(user_id):
+    connections = Connection.query.filter(
+        ((Connection.sender_id == user_id) | (Connection.receiver_id == user_id)) &
+        (Connection.status == 'accepted')
+    ).all()
+
+    result = []
+    for c in connections:
+        result.append({
+            "connection_id": c.id,
+            "other_user_id": c.receiver_id if c.sender_id == user_id else c.sender_id
+        })
     return jsonify(result), 200
