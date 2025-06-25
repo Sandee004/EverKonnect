@@ -1,6 +1,6 @@
 from core.imports import (
     request, jsonify, Message,
-    create_access_token, JWTManager, get_jwt_identity, jwt_required,
+    create_access_token, JWTManager, get_jwt_identity, jwt_required, render_template,
     datetime, timedelta, random, Client, Blueprint, base64, io, np, Image, cv2, redirect, url_for, os, load_dotenv
 )
 from flask import Flask
@@ -13,14 +13,19 @@ auth_bp = Blueprint('auth', __name__)
 load_dotenv()
 
 
-def send_email_otp(to, subject, body):
-    msg = Message(subject=subject,
-                  recipients=[to])
+def send_email(to, subject, body):
+    msg = Message(subject=subject, recipients=[to])
     msg.html = body
     try:
         mail.send(msg)
     except Exception as e:
-        print(f"Error sending email: {str(e)}")
+        print(f"Error sending email: {e}")
+
+def send_otp_email(email, otp):
+    subject = "Your Account Verification OTP"
+    body = render_template('email.html', otp=otp, year=datetime.now().year)
+    send_email(email, subject, body)
+
 
 def send_sms_otp(phone, otp):
     account_sid = "your_twilio_sid"
@@ -105,10 +110,9 @@ def auth():
     print("Added entry to db")
     
     if email:
-        subject = "Your verification code"
-        body = f"<p>Your verification code is <strong>{otp}</strong></p>"
-        send_email_otp(email, subject, body)
-        return jsonify({"message": f"OTP sent to {email}"}), 200
+      
+      send_otp_email(email, otp)
+      return jsonify({"message": f"OTP sent to {email}"}), 200
     elif phone:
         send_sms_otp(phone, otp)
         return jsonify({"message": f"OTP sent to {phone}"}), 200
@@ -280,11 +284,16 @@ def verify_face():
     """
     Verify that the provided image contains at least one face
     ---
+    tags:
+      - Authentication
     parameters:
       - in: body
         name: body
+        required: true
         schema:
           type: object
+          required:
+            - face_image
           properties:
             face_image:
               type: string
@@ -293,10 +302,21 @@ def verify_face():
     responses:
       200:
         description: Face detected successfully
+        schema:
+          type: object
+          properties:
+            message:
+              type: string
+              example: "1 face(s) detected"
       400:
         description: No face detected or bad image
+        schema:
+          type: object
+          properties:
+            error:
+              type: string
+              example: "No face detected"
     """
-
     data = request.get_json()
     face_image_b64 = data.get('face_image')
     if not face_image_b64:

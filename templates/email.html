@@ -2,65 +2,78 @@
 <html lang="en">
   <head>
     <meta charset="UTF-8" />
-    <meta http-equiv="X-UA-Compatible" content="IE=edge" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>Account Verification</title>
+    <title>Your Verification Code | EverKonnect</title>
     <style>
       body {
-        font-family: Arial, sans-serif;
-        background-color: #f4f4f4;
-        margin: 0;
-        padding: 0;
+        background-color: #f3f4f6;
+        font-family: Arial, Helvetica, sans-serif;
+        padding: 20px;
       }
-      .email-container {
+      .container {
         max-width: 600px;
         margin: 0 auto;
-        padding: 20px;
-        background-color: white;
-        border: 1px solid #ddd;
+        background: #ffffff;
         border-radius: 8px;
+        box-shadow: 0 0 10px rgba(0, 0, 0, 0.1);
+        overflow: hidden;
       }
-      .email-header {
-        background-color: #4caf50;
-        color: white;
-        padding: 10px;
-        border-radius: 8px 8px 0 0;
+      .header {
+        background-color: #1e3a8a; /* dark blue */
+        color: #ffffff;
         text-align: center;
-      }
-      .email-body {
-        padding: 20px;
-        font-size: 16px;
-      }
-      .otp {
+        padding: 16px 0;
         font-size: 24px;
         font-weight: bold;
-        color: #4caf50;
+      }
+      .body {
+        padding: 24px;
+        text-align: center;
+      }
+      .body p {
+        color: #4b5563;
+        margin-bottom: 16px;
+        font-size: 16px;
+      }
+      .otp-box {
+        background-color: #1e3a8a;
+        color: #ffffff;
+        font-size: 28px;
+        font-weight: bold;
+        padding: 12px 24px;
+        border-radius: 6px;
+        display: inline-block;
+        letter-spacing: 2px;
+        margin-bottom: 16px;
       }
       .footer {
-        margin-top: 20px;
-        font-size: 12px;
+        background-color: #1e3a8a;
+        color: #ffffff;
         text-align: center;
-        color: #888;
+        padding: 12px;
+        font-size: 12px;
       }
     </style>
   </head>
   <body>
-    <div class="email-container">
-      <div class="email-header">
-        <h2>Account Verification</h2>
-      </div>
-      <div class="email-body">
-        <p>Hi {{ name }},</p>
-        <p>Your OTP for verifying your account is:</p>
-        <p class="otp">{{ otp }}</p>
+    <div class="container">
+      <!-- Header -->
+      <div class="header">EverKonnect</div>
+
+      <!-- Body -->
+      <div class="body">
         <p>
-          This OTP will expire in 10 minutes. Please use it to complete your
-          registration.
+          Welcome to EverKonnect! To complete your verification, please use the
+          code below:
         </p>
-        <p>If you did not request this, please ignore this email.</p>
+        <div class="otp-box">{{ otp }}</div>
+        <p style="color: #6b7280; font-size: 14px">
+          This code will expire shortly. Please do not share it with anyone.
+        </p>
       </div>
+
+      <!-- Footer -->
       <div class="footer">
-        <p>Thank you for using our service!</p>
+        &copy; {{ year }} EverKonnect — All rights reserved.
       </div>
     </div>
   </body>

@@ -7,7 +7,7 @@ from core.imports import (
 )
 from core.config import Config
 from core.extensions import db, jwt, mail, swagger, cors, bcrypt, oauth
-from core.models import User, TempUser, UserPersonality, MatchPreference
+from core.models import User, TempUser, UserPersonality, MatchPreference, LoveBasicInfo, BusinessBasicInfo, BusinessCredentials
 from routes.auth_routes import auth_bp
 
 def create_app():
@@ -62,13 +62,10 @@ def model_to_dict(model):
 
 def calculate_match_score(preferences, user, personality):
     score = 0
-    current_location = db.Column(db.String(100), nullable=True)
-    hair_style = db.Column(db.String(150), nullable=True)
     
     # 1. Exact matches for simple fields
     if preferences.age_range and preferences.age_range == user.age_range:
         score += 5
-
     if preferences.marital_status and preferences.marital_status == user.marital_status:
         score += 5
     if preferences.country_of_origin and preferences.country_of_origin == user.country_of_origin:
@@ -219,25 +216,34 @@ responses:
     except (ValueError, TypeError):
         return jsonify({"message": "dateOfBirth must be in YYYY-MM-DD format"}), 400
 
-    # Update the user
-    user.nickname = nickname
-    user.fullname = fullname
-    user.date_of_birth = dob
-    user.age_range = ageRange
-    user.marital_status = maritalStatus
-    user.country_of_origin = countryOfOrigin
-    user.tribe = tribe
-    user.current_location = currentLocation
-    user.skin_tone = skinTone
+    love_basic_info = user.love_basic_info
+    if not love_basic_info:
+        love_basic_info = LoveBasicInfo(
+            user_id=user.id
+        )
+
+    # Fill the fields
+    love_basic_info.nickname = nickname
+    love_basic_info.fullname = fullname
+    love_basic_info.date_of_birth = dob
+    love_basic_info.age_range = ageRange
+    love_basic_info.marital_status = maritalStatus
+    love_basic_info.country_of_origin = countryOfOrigin
+    love_basic_info.tribe = tribe
+    love_basic_info.current_location = currentLocation
+    love_basic_info.skin_tone = skinTone
+
+    # Add if new record
+    if not user.love_basic_info:
+        db.session.add(love_basic_info)
 
     db.session.commit()
-
     return jsonify({"message": "User info updated successfully"}), 200
 
 
-@app.route("/api/love/set_preferences", methods=["POST"])
+@app.route("/api/love/set_personality", methods=["POST"])
 @jwt_required()
-def set_love_preferences():
+def set_love_personality():
     """
 Set User Love Preferences
 ---
@@ -331,7 +337,6 @@ responses:
     """
     # Get user ID from JWT token
     current_user_id = get_jwt_identity()
-    
     data = request.json
 
     # Verify user exists
@@ -359,11 +364,11 @@ responses:
     if not all(data.get(field) for field in required_fields):
         return jsonify({"message": "Fill all fields"}), 400
 
-    # Check if user already has preferences
+    # Check if user already has personality set
     existing_personality = UserPersonality.query.filter_by(user_id=current_user_id).first()
     
     if existing_personality:
-        # Update existing preferences
+        # Update existing personalities
         existing_personality.height = height
         existing_personality.eye_colour = eye_colour
         existing_personality.body_type = body_type
@@ -379,7 +384,7 @@ responses:
         existing_personality.education = education
         existing_personality.languages = languages
         existing_personality.values = values
-        message = "Preferences updated successfully"
+        message = "Personality updated successfully"
     else:
         # Create new preferences
         personality = UserPersonality(
@@ -401,10 +406,187 @@ responses:
             values=values
         )
         db.session.add(personality)
-        message = "Preferences saved successfully"
+        message = "Personality saved successfully"
 
     db.session.commit()
+    return jsonify({"message": message}), 200
 
+
+@app.route("/api/love/set_match_preferences", methods=["POST"])
+@jwt_required()
+def set_match_preferences():
+    """
+Set User Match Preferences
+---
+tags:
+  - Love
+security:
+  - bearerAuth: []
+consumes:
+  - application/json
+parameters:
+  - name: Authorization
+    in: header
+    description: "JWT token as: Bearer <your_token>"
+    required: true
+    type: string
+    example: "Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6..."
+  - name: body
+    in: body
+    required: true
+    schema:
+      type: object
+      required:
+        - age_range
+        - marital_status
+        - country_of_origin
+        - tribe
+        - current_location
+        - skin_tone
+        - height
+        - eye_colour
+        - body_type
+        - hair_colour
+        - hair_style
+        - religion
+        - education
+        - languages
+        - values
+        - interest
+        - hobbies
+        - music
+        - movies
+        - activities
+        - personality
+      properties:
+        age_range:
+          type: string
+          example: "25-35"
+        marital_status:
+          type: string
+          example: "Single"
+        country_of_origin:
+          type: string
+          example: "Kenya"
+        tribe:
+          type: string
+          example: "Kikuyu"
+        current_location:
+          type: string
+          example: "Nairobi"
+        skin_tone:
+          type: string
+          example: "Dark"
+        height:
+          type: string
+          example: "170cm"
+        eye_colour:
+          type: string
+          example: "Brown"
+        body_type:
+          type: string
+          example: "Athletic"
+        hair_colour:
+          type: string
+          example: "Black"
+        hair_style:
+          type: string
+          example: "Curly"
+        religion:
+          type: string
+          example: "Christian"
+        education:
+          type: string
+          example: "Degree"
+        languages:
+          type: string
+          example: "Swahili, English"
+        values:
+          type: string
+          example: "Honesty"
+        interest:
+          type: string
+          example: "Technology"
+        hobbies:
+          type: string
+          example: "Hiking, Chess"
+        music:
+          type: string
+          example: "Jazz"
+        movies:
+          type: string
+          example: "Drama"
+        activities:
+          type: string
+          example: "Yoga"
+        personality:
+          type: string
+          example: "Introvert"
+responses:
+  200:
+    description: Match preferences saved successfully
+  400:
+    description: Bad request
+  404:
+    description: User not found
+    """
+    # Get user ID from JWT token
+    current_user_id = get_jwt_identity()
+    data = request.json
+
+    # Verify user exists
+    user = User.query.get(current_user_id)
+    if not user:
+        return jsonify({"message": "User not found"}), 404
+
+    # Required fields
+    required_fields = [
+        "age_range", "marital_status", "country_of_origin", "tribe", "current_location",
+        "skin_tone", "height", "eye_colour", "body_type", "hair_colour", "hair_style",
+        "religion", "education", "languages", "values", "interest", "hobbies", "music",
+        "movies", "activities", "personality"
+    ]
+    if not all(data.get(field) for field in required_fields):
+        return jsonify({"message": "Fill all fields"}), 400
+
+    # Check if user already has match preferences
+    existing_pref = MatchPreference.query.filter_by(user_id=current_user_id).first()
+
+    if existing_pref:
+        # Update existing preferences
+        for field in required_fields:
+            setattr(existing_pref, field, data.get(field))
+        message = "Match preferences updated successfully"
+    else:
+        # Create new preferences
+        new_pref = MatchPreference(
+            user_id=current_user_id,
+            age_range=data.get('age_range'),
+            marital_status=data.get('marital_status'),
+            country_of_origin=data.get('country_of_origin'),
+            tribe=data.get('tribe'),
+            current_location=data.get('current_location'),
+            skin_tone=data.get('skin_tone'),
+            height=data.get('height'),
+            eye_colour=data.get('eye_colour'),
+            body_type=data.get('body_type'),
+            hair_colour=data.get('hair_colour'),
+            hair_style=data.get('hair_style'),
+            religion=data.get('religion'),
+            education=data.get('education'),
+            languages=data.get('languages'),
+            values=data.get('values'),
+            interest=data.get('interest'),
+            hobbies=data.get('hobbies'),
+            music=data.get('music'),
+            movies=data.get('movies'),
+            activities=data.get('activities'),
+            personality=data.get('personality')
+        )
+        db.session.add(new_pref)
+        message = "Match preferences saved successfully"
+
+    db.session.commit()
     return jsonify({"message": message}), 200
 
 
@@ -492,6 +674,249 @@ def get_matches():
 
     return jsonify(matches), 200
 
+###Business
+@app.route('/api/business/basic_info', methods=['POST'])
+@jwt_required()
+def business_registration():
+    """
+User Business Info Registration
+---
+tags:
+  - Business
+security:
+  - Bearer: []
+consumes:
+  - application/json
+parameters:
+  - name: Authorization
+    in: header
+    description: "JWT token as: Bearer <your_token>"
+    required: true
+    type: string
+    example: "Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6..."
+  - name: body
+    in: body
+    required: true
+    schema:
+      type: object
+      required:
+        - fullname
+        - home_address
+        - phone
+        - country
+        - state
+        - city
+        - language
+        - sex
+        - DoB
+        - businessName
+        - businessAddress
+      properties:
+        fullname:
+          type: string
+          example: John Doe
+        home_address:
+          type: string
+          example: 123 Main Street
+        phone:
+          type: string
+          example: "+1234567890"
+        country:
+          type: string
+          example: "USA"
+        state:
+          type: string
+          example: "California"
+        city:
+          type: string
+          example: "Los Angeles"
+        language:
+          type: string
+          example: "English"
+        sex:
+          type: string
+          example: "Male"
+        DoB:
+          type: string
+          format: date
+          example: "1990-01-01"
+        businessName:
+          type: string
+          example: "My Business"
+        businessAddress:
+          type: string
+          example: "456 Market Street"
+responses:
+  200:
+    description: User info updated successfully
+  400:
+    description: Bad request
+  404:
+    description: User not found
+    """
+    # Get user ID from JWT token
+    current_user_id = get_jwt_identity()
+    
+    data = request.json
+
+    # Find the current user
+    user = User.query.get(current_user_id)
+    if not user:
+        return jsonify({"message": "User not found"}), 404
+
+    # Get the fields
+    fullname = data.get('fullname')
+    homeAddress = data.get('home_address')
+    phone = data.get('phone')
+    country = data.get('country')
+    state = data.get('state')
+    city = data.get('city')
+    language = data.get('language')
+    sex = data.get('sex')
+    DoB = data.get('DateOfBirth')
+    businessName = data.get('businessName')
+    businessAddress = data.get('businessAddress')
+
+    required_fields = ["fullname", "address","phone", "country", "state", "city", "language", "sex", "DoB", "businessName", "businessAddress"]
+    if not all(data.get(field) for field in required_fields):
+        return jsonify({"message": "Fill all fields"}), 400
+
+    dob = None
+    try:
+        dob = datetime.strptime(DoB, "%Y-%m-%d").date()
+    except (ValueError, TypeError):
+        return jsonify({"message": "dateOfBirth must be in YYYY-MM-DD format"}), 400
+
+    business_basic_info = user.business_basic_info
+    if not business_basic_info:
+        business_basic_info = BusinessBasicInfo(
+            user_id=user.id
+        )
+
+    # Fill the fields
+    business_basic_info.fullname = fullname
+    business_basic_info.homeAddress = homeAddress
+    business_basic_info.phone = phone
+    business_basic_info.country = country
+    business_basic_info.state = state
+    business_basic_info.city = city
+    business_basic_info.language = language
+    business_basic_info.sex = sex
+    business_basic_info.DoB = DoB
+    business_basic_info.businessName = businessName
+    business_basic_info.businessAddress = businessAddress
+
+    # Add if new record
+    if not user.business_basic_info:
+        db.session.add(business_basic_info)
+
+    db.session.commit()
+    return jsonify({"message": "User info updated successfully"}), 200
+
+
+@app.route("/api/business/add_credentials", methods=["POST"])
+@jwt_required()
+def set_business_credentials():
+    """
+Set User Business Credentials
+---
+tags:
+  - Business
+security:
+  - Bearer: []
+consumes:
+  - application/json
+parameters:
+  - name: Authorization
+    in: header
+    description: "JWT token as: Bearer <your_token>"
+    required: true
+    type: string
+    example: "Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6..."
+  - name: body
+    in: body
+    required: true
+    schema:
+      type: object
+      required:
+        - profession
+        - YearsOfExperience
+        - skills
+        - description
+        - businessInterests
+      properties:
+        profession:
+          type: string
+          example: "Software Engineer"
+        YearsOfExperience:
+          type: integer
+          example: 5
+        skills:
+          type: string
+          example: "Python, Flask, SQL"
+        description:
+          type: string
+          example: "Experienced in backend systems and cloud architecture."
+        businessInterests:
+          type: string
+          example: "AI, SaaS, Cloud computing"
+responses:
+  200:
+    description: Credentials updated successfully
+  201:
+    description: Credentials saved successfully
+  400:
+    description: Bad request
+  404:
+    description: User not found
+    """
+    # Get user ID from JWT token
+    current_user_id = get_jwt_identity()
+    data = request.json
+
+    # Verify user exists
+    user = User.query.get(current_user_id)
+    if not user:
+        return jsonify({"message": "User not found"}), 404
+
+    profession = data.get('profession')
+    YearsOfExperience = data.get('YearsOfExperience')
+    skills = data.get('skills')
+    description = data.get('description')
+    businessInterests = data.get('businessInterests')
+
+    required_fields = ["profession", "YearsOfExperience", "skills", "description", "businessInterests"]
+    if not all(data.get(field) for field in required_fields):
+        return jsonify({"message": "Fill all fields"}), 400
+
+    # Check if user already has preferences
+    existing_credentials = BusinessCredentials.query.filter_by(user_id=current_user_id).first()
+    
+    if existing_credentials:
+        # Update existing preferences
+        existing_credentials.profession = profession
+        existing_credentials.YearsOfExperience = YearsOfExperience
+        existing_credentials.skills = skills
+        existing_credentials.description = description
+        existing_credentials.businessInterests = businessInterests
+        
+        message = "Credentials updated successfully"
+    else:
+        # Create new preferences
+        new_credentials = BusinessCredentials(
+            user_id=current_user_id,
+            profession=profession,
+            YearsOfExperience=YearsOfExperience,
+            skills=skills,
+            descripption=description,
+            businessInterests=businessInterests
+    
+        )
+        db.session.add(new_credentials)
+        message = "Preferences saved successfully"
+
+    db.session.commit()
+    return jsonify({"message": message}), 200
 
 
 
