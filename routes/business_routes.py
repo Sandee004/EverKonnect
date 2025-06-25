@@ -293,6 +293,32 @@ def get_users_with_business():
 # 📍 Send a connection request
 @business_bp.route('/api/connect', methods=['POST'])
 def send_connection():
+    """
+    Send a connection request to another business user.
+    ---
+    tags:
+      - Connections
+    parameters:
+      - in: body
+        name: body
+        required: true
+        schema:
+          type: object
+          properties:
+            sender_id:
+              type: integer
+              example: 1
+            receiver_id:
+              type: integer
+              example: 2
+    responses:
+      201:
+        description: Connection request sent successfully
+      400:
+        description: Connection request already exists or both must have business accounts
+      404:
+        description: User not found
+    """
     sender_id = request.json.get('sender_id')
     receiver_id = request.json.get('receiver_id')
     
@@ -319,6 +345,38 @@ def send_connection():
 # 📍 View incoming (received) requests
 @business_bp.route('/api/connections/pending/<int:user_id>', methods=['GET'])
 def view_pending(user_id):
+    """
+    Get all pending connection requests received by this user.
+    ---
+    tags:
+      - Connections
+    parameters:
+      - name: user_id
+        in: path
+        required: true
+        schema:
+          type: integer
+          example: 1
+    responses:
+      200:
+        description: List of pending connection requests
+        content:
+          application/json:
+            schema:
+              type: array
+              items:
+                type: object
+                properties:
+                  id:
+                    type: integer
+                    example: 123
+                  sender_id:
+                    type: integer
+                    example: 2
+                  status:
+                    type: string
+                    example: "pending"
+    """
     requests_ = Connection.query.filter_by(receiver_id=user_id, status='pending').all()
     result = [
         {
@@ -333,6 +391,24 @@ def view_pending(user_id):
 # 📍 Accept a connection request
 @business_bp.route('/connections/accept/<int:connection_id>', methods=['POST'])
 def accept_connection(connection_id):
+    """
+    Accept a pending connection request.
+    ---
+    tags:
+      - Connections
+    parameters:
+      - name: connection_id
+        in: path
+        required: true
+        schema:
+          type: integer
+          example: 123
+    responses:
+      200:
+        description: Connection accepted successfully
+      404:
+        description: Connection not found
+    """
     connection = Connection.query.get_or_404(connection_id)
     connection.status = 'accepted'
     db.session.commit()
@@ -341,6 +417,24 @@ def accept_connection(connection_id):
 # 📍 Decline a connection request
 @business_bp.route('/connections/decline/<int:connection_id>', methods=['POST'])
 def decline_connection(connection_id):
+    """
+    Decline a pending connection request.
+    ---
+    tags:
+      - Connections
+    parameters:
+      - name: connection_id
+        in: path
+        required: true
+        schema:
+          type: integer
+          example: 123
+    responses:
+      200:
+        description: Connection declined successfully
+      404:
+        description: Connection not found
+    """
     connection = Connection.query.get_or_404(connection_id)
     connection.status = 'declined'
     db.session.commit()
@@ -349,6 +443,35 @@ def decline_connection(connection_id):
 # 📍 View accepted connections
 @business_bp.route('/connections/accepted/<int:user_id>', methods=['GET'])
 def view_accepted(user_id):
+    """
+    Get all accepted connections for this user.
+    ---
+    tags:
+      - Connections
+    parameters:
+      - name: user_id
+        in: path
+        required: true
+        schema:
+          type: integer
+          example: 1
+    responses:
+      200:
+        description: List of accepted connections
+        content:
+          application/json:
+            schema:
+              type: array
+              items:
+                type: object
+                properties:
+                  connection_id:
+                    type: integer
+                    example: 123
+                  other_user_id:
+                    type: integer
+                    example: 2
+    """
     connections = Connection.query.filter(
         ((Connection.sender_id == user_id) | (Connection.receiver_id == user_id)) &
         (Connection.status == 'accepted')
@@ -360,4 +483,113 @@ def view_accepted(user_id):
             "connection_id": c.id,
             "other_user_id": c.receiver_id if c.sender_id == user_id else c.sender_id
         })
+    return jsonify(result), 200
+
+
+@business_bp.route('/messages', methods=['POST'])
+def send_message():
+    """
+    Send a message to another user.
+    ---
+    tags:
+      - Messages
+    parameters:
+      - in: body
+        name: body
+        required: true
+        schema:
+          type: object
+          properties:
+            sender_id:
+              type: integer
+              example: 1
+            receiver_id:
+              type: integer
+              example: 2
+            content:
+              type: string
+              example: "Hello, how are you?"
+    responses:
+      201:
+        description: Message sent successfully
+      404:
+        description: User not found
+    """
+    sender_id = request.json.get('sender_id')
+    receiver_id = request.json.get('receiver_id')
+    content = request.json.get('content')
+
+    # Validate sender and receiver
+    sender = User.query.get(sender_id)
+    receiver = User.query.get(receiver_id)
+    if not sender or not receiver:
+        return jsonify({"error": "User not found"}), 404
+
+    message = Message(sender_id=sender_id, receiver_id=receiver_id, content=content)
+    db.session.add(message)
+    db.session.commit()
+    return jsonify({"message": "Message sent"}), 201
+
+
+@business_bp.route('/messages/conversation/<int:sender_id>/<int:receiver_id>', methods=['GET'])
+def get_conversation(sender_id, receiver_id):
+    """
+    Get the conversation between a sender and a receiver.
+    ---
+    tags:
+      - Messages
+    parameters:
+      - name: sender_id
+        in: path
+        required: true
+        schema:
+          type: integer
+          example: 1
+      - name: receiver_id
+        in: path
+        required: true
+        schema:
+          type: integer
+          example: 2
+    responses:
+      200:
+        description: List of messages between the sender and receiver
+        content:
+          application/json:
+            schema:
+              type: array
+              items:
+                type: object
+                properties:
+                  id:
+                    type: integer
+                    example: 100
+                  sender_id:
+                    type: integer
+                    example: 1
+                  receiver_id:
+                    type: integer
+                    example: 2
+                  content:
+                    type: string
+                    example: "Hey, let's connect!"
+                  timestamp:
+                    type: string
+                    example: "2025-06-25T10:30:00"
+    """
+    messages = Message.query.filter(
+        ((Message.sender_id == sender_id) & (Message.receiver_id == receiver_id)) |
+        ((Message.sender_id == receiver_id) & (Message.receiver_id == sender_id))
+    ).order_by(Message.timestamp.asc()).all()
+
+    result = [
+        {
+            "id": msg.id,
+            "sender_id": msg.sender_id,
+            "receiver_id": msg.receiver_id,
+            "content": msg.content,
+            "timestamp": msg.timestamp.isoformat(),
+        }
+        for msg in messages
+    ]
     return jsonify(result), 200
