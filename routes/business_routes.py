@@ -254,3 +254,36 @@ responses:
 
     db.session.commit()
     return jsonify({"message": message}), 200
+
+
+@business_bp.route('/api/business/homepage', methods=['GET'])
+def get_users_with_business():
+    # inner join returns only users who have a business_basic_info
+    users = User.query.join(BusinessBasicInfo).all()
+
+    result = []
+    for user in users:
+        b = user.business_basic_info
+        result.append(
+            {
+                "id": user.id,
+                "email": user.email,
+                "phone": user.phone,
+                "username": user.username,
+                "business_info": {
+                    "fullname": b.fullname,
+                    "homeAddress": b.homeAddress,
+                    "phone": b.phone,
+                    "country": b.country,
+                    "state": b.state,
+                    "city": b.city,
+                    "language": b.language,
+                    "sex": b.sex,
+                    "DoB": b.DoB,
+                    "businessName": b.businessName,
+                    "businessAddress": b.businessAddress,
+                }
+            }
+        )
+
+    return jsonify(result), 200
