@@ -8,7 +8,8 @@ from core.imports import (
 from core.config import Config
 from core.extensions import db, jwt, mail, swagger, cors, bcrypt, oauth
 from core.models import User, TempUser, UserPersonality, MatchPreference, LoveBasicInfo, BusinessBasicInfo, BusinessCredentials
-from routes.auth_routes import auth_bp, love_bp
+from routes.auth_routes import auth_bp
+from routes.love_routes import love_bp
 
 def create_app():
     app = Flask(__name__)

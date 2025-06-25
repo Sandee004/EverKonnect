@@ -3,7 +3,6 @@ from core.imports import (
     JWTManager, get_jwt_identity, jwt_required,
     datetime, timedelta, Blueprint, redirect, load_dotenv
 )
-from flask import Flask
 from core.config import Config
 from core.extensions import db
 from core.models import User, LoveBasicInfo, UserPersonality, MatchPreference
