@@ -290,7 +290,7 @@ def get_users_with_business():
     return jsonify(result), 200
 
 
-# 📍 Send a connection request
+# Send a connection request
 @business_bp.route('/api/connect', methods=['POST'])
 def send_connection():
     """
@@ -327,22 +327,31 @@ def send_connection():
     if not sender or not receiver:
         return jsonify({"error": "User not found"}), 404
 
-    # Check if a connection already exists in either direction
-    existing = Connection.query.filter(
+    # Check that there's at least one message between the two
+    existing_messages = Message.query.filter(
+        ((Message.sender_id == sender_id) & (Message.receiver_id == receiver_id)) |
+        ((Message.sender_id == receiver_id) & (Message.receiver_id == sender_id))
+    ).first()
+
+    if not existing_messages:
+        return jsonify({"error": "You can only connect with someone you have messaged before."}), 400
+
+    # Check if a connection already exists
+    existing_connection = Connection.query.filter(
         ((Connection.sender_id == sender_id) & (Connection.receiver_id == receiver_id)) |
         ((Connection.sender_id == receiver_id) & (Connection.receiver_id == sender_id))
     ).first()
-    if existing:
+    if existing_connection:
         return jsonify({"error": "Connect request already exists"}), 400
 
-    # Create new connection request
+    # Proceed with creating the connection request
     connection = Connection(sender_id=sender_id, receiver_id=receiver_id, status='pending')
     db.session.add(connection)
     db.session.commit()
 
     return jsonify({"message": "Connection request sent"}), 201
 
-# 📍 View incoming (received) requests
+# View pending (received) requests
 @business_bp.route('/api/connections/pending/<int:user_id>', methods=['GET'])
 def view_pending(user_id):
     """
@@ -388,7 +397,7 @@ def view_pending(user_id):
     ]
     return jsonify(result), 200
 
-# 📍 Accept a connection request
+# Accept a connection request
 @business_bp.route('/connections/accept/<int:connection_id>', methods=['POST'])
 def accept_connection(connection_id):
     """
@@ -414,7 +423,7 @@ def accept_connection(connection_id):
     db.session.commit()
     return jsonify({"message": "Connection accepted"}), 200
 
-# 📍 Decline a connection request
+# Decline a connection request
 @business_bp.route('/connections/decline/<int:connection_id>', methods=['POST'])
 def decline_connection(connection_id):
     """
@@ -440,7 +449,7 @@ def decline_connection(connection_id):
     db.session.commit()
     return jsonify({"message": "Connection declined"}), 200
 
-# 📍 View accepted connections
+# View accepted connections
 @business_bp.route('/connections/accepted/<int:user_id>', methods=['GET'])
 def view_accepted(user_id):
     """
