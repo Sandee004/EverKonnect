@@ -21,12 +21,13 @@ class User(db.Model):
     referral_code = db.Column(db.String(20), unique=True, nullable=True)  # e.g. "ABC123"
     referral_points = db.Column(db.Integer, default=0, nullable=False)
 
-    love_basic_info = db.relationship('LoveBasicInfo', backref='user', uselist=False)
-    personality = db.relationship('UserPersonality', backref='user', uselist=False)
-    matchpreference = db.relationship('MatchPreference', backref='user', uselist=False)
-    business_basic_info = db.relationship('BusinessBasicInfo', backref='user', uselist=False)
-    business_credentials = db.relationship('BusinessCredentials', backref='user', uselist=False)
-    saved_images = db.relationship('SavedPhoto', backref='user')
+    love_basic_info = db.relationship('LoveBasicInfo', backref='user', uselist=False, lazy='joined')
+    personality = db.relationship('UserPersonality', backref='user', uselist=False, lazy='joined')
+    matchpreference = db.relationship('MatchPreference', backref='user', uselist=False, lazy='joined')
+    business_basic_info = db.relationship('BusinessBasicInfo', backref='user', uselist=False, lazy='joined')
+    business_credentials = db.relationship('BusinessCredentials', backref='user', uselist=False, lazy='joined')
+    saved_images = db.relationship('SavedPhoto', backref='user', lazy='select')  # or 'dynamic'
+    blog_posts = db.relationship('BlogPost', backref='author', lazy='select')
 
 class LoveBasicInfo(db.Model):
     id = db.Column(db.Integer, primary_key=True)
@@ -144,3 +145,16 @@ class SavedPhoto(db.Model):
     photo_url = db.Column(db.String(255), nullable=False)  # e.g. "uploads/myimage.png"
     uploaded_at = db.Column(db.DateTime, default=datetime.utcnow)
 
+
+class BlogPost(db.Model):
+    id = db.Column(db.Integer, primary_key=True)
+    title = db.Column(db.String(200), nullable=False)
+    content = db.Column(db.Text, nullable=False)
+    timestamp = db.Column(db.DateTime, default=datetime.utcnow)
+    user_id = db.Column(db.Integer, db.ForeignKey('user.id'), nullable=False)
+    likes = db.relationship('BlogLike', backref='post', lazy=True)
+
+class BlogLike(db.Model):
+    id = db.Column(db.Integer, primary_key=True)
+    user_id = db.Column(db.Integer, db.ForeignKey('user.id'), nullable=False)
+    post_id = db.Column(db.Integer, db.ForeignKey('blog_post.id'), nullable=False)
