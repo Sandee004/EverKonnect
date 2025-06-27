@@ -25,6 +25,7 @@ class User(db.Model):
     matchpreference = db.relationship('MatchPreference', backref='user', uselist=False)
     business_basic_info = db.relationship('BusinessBasicInfo', backref='user', uselist=False)
     business_credentials = db.relationship('BusinessCredentials', backref='user', uselist=False)
+    saved_images = db.relationship('SavedPhoto', backref='user')
 
 class LoveBasicInfo(db.Model):
     id = db.Column(db.Integer, primary_key=True)
@@ -134,3 +135,11 @@ class Message(db.Model):
 
     sender = db.relationship('User', foreign_keys=[sender_id])
     receiver = db.relationship('User', foreign_keys=[receiver_id])
+
+
+class SavedPhoto(db.Model):
+    id = db.Column(db.Integer, primary_key=True)
+    user_id = db.Column(db.Integer, db.ForeignKey('user.id'), nullable=False)
+    photo_url = db.Column(db.String(255), nullable=False)  # e.g. "uploads/myimage.png"
+    uploaded_at = db.Column(db.DateTime, default=datetime.utcnow)
+

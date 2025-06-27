@@ -9,8 +9,9 @@ from core.config import Config
 from core.extensions import db, jwt, mail, swagger, cors, bcrypt, oauth
 from core.models import User, TempUser, UserPersonality, MatchPreference
 from routes.auth_routes import auth_bp
-from routes.love_routes import love_bp
-from routes.business_routes import business_bp
+from routes.love import love_bp
+from routes.business import business_bp
+from routes.connection import connection_bp
 
 def create_app():
     app = Flask(__name__)
@@ -27,6 +28,7 @@ def create_app():
     app.register_blueprint(auth_bp)
     app.register_blueprint(love_bp)
     app.register_blueprint(business_bp)
+    app.register_blueprint(connection_bp)
     return app
 
 app = create_app()
@@ -238,5 +240,5 @@ def show_users_and_preferences():
 
 if __name__ == "__main__":
     with app.app_context():
-        db.create_all()
+        db.drop_all()
     app.run(debug=True)

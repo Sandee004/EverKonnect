@@ -4,8 +4,9 @@ from core.imports import (
     datetime, timedelta, Blueprint, redirect, load_dotenv
 )
 from core.config import Config
+import cloudinary.uploader
 from core.extensions import db
-from core.models import User, BusinessBasicInfo, BusinessCredentials, Connection
+from core.models import User, BusinessBasicInfo, BusinessCredentials, SavedPhoto
 
 
 business_bp = Blueprint('business', __name__)
@@ -257,9 +258,83 @@ responses:
 
 
 @business_bp.route('/api/business/homepage', methods=['GET'])
+@jwt_required()
 def get_users_with_business():
-    business_users = User.query.filter_by(is_business_user=True).all()
-    # inner join returns only users who have a business_basic_info
+    """
+    Get a list of users who are business users along with their business info.
+    ---
+    tags:
+      - Business
+    security:
+      - Bearer: []
+    parameters:
+      - name: Authorization
+        in: header
+        description: 'JWT token as: Bearer <your_token>'
+        required: true
+        schema:
+          type: string
+          example: "Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6..."
+    responses:
+      200:
+        description: List of business users with their business info
+        schema:
+          type: array
+          items:
+            type: object
+            properties:
+              id:
+                type: integer
+                example: 123
+              email:
+                type: string
+                example: "businessuser@example.com"
+              phone:
+                type: string
+                example: "+1234567890"
+              username:
+                type: string
+                example: "businessuser"
+              business_info:
+                type: object
+                properties:
+                  fullname:
+                    type: string
+                    example: "John Doe"
+                  homeAddress:
+                    type: string
+                    example: "123 Main St"
+                  phone:
+                    type: string
+                    example: "+1234567890"
+                  country:
+                    type: string
+                    example: "USA"
+                  state:
+                    type: string
+                    example: "California"
+                  city:
+                    type: string
+                    example: "San Francisco"
+                  language:
+                    type: string
+                    example: "English"
+                  sex:
+                    type: string
+                    example: "Male"
+                  DoB:
+                    type: string
+                    format: date
+                    example: "1980-01-01"
+                  businessName:
+                    type: string
+                    example: "John's Widgets"
+                  businessAddress:
+                    type: string
+                    example: "456 Business Rd"
+      401:
+        description: Unauthorized - Missing or invalid JWT
+    """
     users = User.query.join(BusinessBasicInfo).all()
 
     result = []
@@ -290,302 +365,127 @@ def get_users_with_business():
     return jsonify(result), 200
 
 
-# Send a connection request
-@business_bp.route('/api/connect', methods=['POST'])
-def send_connection():
-    """
-    Send a connection request to another business user.
-    ---
-    tags:
-      - Connections
-    parameters:
-      - in: body
-        name: body
-        required: true
-        schema:
-          type: object
-          properties:
-            sender_id:
-              type: integer
-              example: 1
-            receiver_id:
-              type: integer
-              example: 2
-    responses:
-      201:
-        description: Connection request sent successfully
-      400:
-        description: Connection request already exists or both must have business accounts
-      404:
-        description: User not found
-    """
-    sender_id = request.json.get('sender_id')
-    receiver_id = request.json.get('receiver_id')
-    
-    sender = User.query.get(sender_id)
-    receiver = User.query.get(receiver_id)
-    if not sender or not receiver:
-        return jsonify({"error": "User not found"}), 404
-
-    # Check that there's at least one message between the two
-    existing_messages = Message.query.filter(
-        ((Message.sender_id == sender_id) & (Message.receiver_id == receiver_id)) |
-        ((Message.sender_id == receiver_id) & (Message.receiver_id == sender_id))
-    ).first()
-
-    if not existing_messages:
-        return jsonify({"error": "You can only connect with someone you have messaged before."}), 400
-
-    # Check if a connection already exists
-    existing_connection = Connection.query.filter(
-        ((Connection.sender_id == sender_id) & (Connection.receiver_id == receiver_id)) |
-        ((Connection.sender_id == receiver_id) & (Connection.receiver_id == sender_id))
-    ).first()
-    if existing_connection:
-        return jsonify({"error": "Connect request already exists"}), 400
-
-    # Proceed with creating the connection request
-    connection = Connection(sender_id=sender_id, receiver_id=receiver_id, status='pending')
-    db.session.add(connection)
-    db.session.commit()
-
-    return jsonify({"message": "Connection request sent"}), 201
-
-# View pending (received) requests
-@business_bp.route('/api/connections/pending/<int:user_id>', methods=['GET'])
-def view_pending(user_id):
-    """
-    Get all pending connection requests received by this user.
-    ---
-    tags:
-      - Connections
-    parameters:
-      - name: user_id
-        in: path
-        required: true
-        schema:
-          type: integer
-          example: 1
-    responses:
-      200:
-        description: List of pending connection requests
-        content:
-          application/json:
-            schema:
-              type: array
-              items:
-                type: object
-                properties:
-                  id:
-                    type: integer
-                    example: 123
-                  sender_id:
-                    type: integer
-                    example: 2
-                  status:
-                    type: string
-                    example: "pending"
-    """
-    requests_ = Connection.query.filter_by(receiver_id=user_id, status='pending').all()
-    result = [
-        {
-            "id": req.id,
-            "sender_id": req.sender_id,
-            "status": req.status
-        }
-        for req in requests_
-    ]
-    return jsonify(result), 200
-
-# Accept a connection request
-@business_bp.route('/connections/accept/<int:connection_id>', methods=['POST'])
-def accept_connection(connection_id):
-    """
-    Accept a pending connection request.
-    ---
-    tags:
-      - Connections
-    parameters:
-      - name: connection_id
-        in: path
-        required: true
-        schema:
-          type: integer
-          example: 123
-    responses:
-      200:
-        description: Connection accepted successfully
-      404:
-        description: Connection not found
-    """
-    connection = Connection.query.get_or_404(connection_id)
-    connection.status = 'accepted'
-    db.session.commit()
-    return jsonify({"message": "Connection accepted"}), 200
-
-# Decline a connection request
-@business_bp.route('/connections/decline/<int:connection_id>', methods=['POST'])
-def decline_connection(connection_id):
-    """
-    Decline a pending connection request.
-    ---
-    tags:
-      - Connections
-    parameters:
-      - name: connection_id
-        in: path
-        required: true
-        schema:
-          type: integer
-          example: 123
-    responses:
-      200:
-        description: Connection declined successfully
-      404:
-        description: Connection not found
-    """
-    connection = Connection.query.get_or_404(connection_id)
-    connection.status = 'declined'
-    db.session.commit()
-    return jsonify({"message": "Connection declined"}), 200
-
-# View accepted connections
-@business_bp.route('/connections/accepted/<int:user_id>', methods=['GET'])
-def view_accepted(user_id):
-    """
-    Get all accepted connections for this user.
-    ---
-    tags:
-      - Connections
-    parameters:
-      - name: user_id
-        in: path
-        required: true
-        schema:
-          type: integer
-          example: 1
-    responses:
-      200:
-        description: List of accepted connections
-        content:
-          application/json:
-            schema:
-              type: array
-              items:
-                type: object
-                properties:
-                  connection_id:
-                    type: integer
-                    example: 123
-                  other_user_id:
-                    type: integer
-                    example: 2
-    """
-    connections = Connection.query.filter(
-        ((Connection.sender_id == user_id) | (Connection.receiver_id == user_id)) &
-        (Connection.status == 'accepted')
-    ).all()
-
-    result = []
-    for c in connections:
-        result.append({
-            "connection_id": c.id,
-            "other_user_id": c.receiver_id if c.sender_id == user_id else c.sender_id
-        })
-    return jsonify(result), 200
 
 
 @business_bp.route('/messages', methods=['POST'])
+@jwt_required()
 def send_message():
     """
     Send a message to another user.
     ---
     tags:
       - Messages
+    security:
+      - Bearer: []
+    consumes:
+      - application/json
     parameters:
+      - name: Authorization
+        in: header
+        description: 'JWT token as: Bearer <your_token>'
+        required: true
+        schema:
+          type: string
+          example: "Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6..."
       - in: body
         name: body
         required: true
         schema:
           type: object
+          required:
+            - receiver_id
+            - content
           properties:
-            sender_id:
-              type: integer
-              example: 1
             receiver_id:
               type: integer
-              example: 2
+              description: ID of the user receiving the message
+              example: 456
             content:
               type: string
-              example: "Hello, how are you?"
+              description: Message content
+              example: "Hello, I’d like to connect."
     responses:
       201:
-        description: Message sent successfully
+        description: Message successfully sent
+        schema:
+          type: object
+          properties:
+            message:
+              type: string
+              example: Message sent
       404:
-        description: User not found
+        description: Receiver not found
+      401:
+        description: Unauthorized - Missing or invalid JWT
     """
-    sender_id = request.json.get('sender_id')
+    sender_id = get_jwt_identity()
     receiver_id = request.json.get('receiver_id')
     content = request.json.get('content')
 
-    # Validate sender and receiver
-    sender = User.query.get(sender_id)
     receiver = User.query.get(receiver_id)
-    if not sender or not receiver:
-        return jsonify({"error": "User not found"}), 404
+    if not receiver:
+        return jsonify({"error": "Receiver not found"}), 404
 
     message = Message(sender_id=sender_id, receiver_id=receiver_id, content=content)
     db.session.add(message)
     db.session.commit()
+
     return jsonify({"message": "Message sent"}), 201
 
 
-@business_bp.route('/messages/conversation/<int:sender_id>/<int:receiver_id>', methods=['GET'])
-def get_conversation(sender_id, receiver_id):
+@business_bp.route('/messages/conversation/<int:receiver_id>', methods=['GET'])
+@jwt_required()
+def get_conversation(receiver_id):
     """
-    Get the conversation between a sender and a receiver.
+    Retrieve the full message conversation between the authenticated user and another user.
     ---
     tags:
       - Messages
+    security:
+      - Bearer: []
     parameters:
-      - name: sender_id
-        in: path
+      - name: Authorization
+        in: header
+        description: 'JWT token as: Bearer <your_token>'
         required: true
         schema:
-          type: integer
-          example: 1
+          type: string
+          example: "Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6..."
       - name: receiver_id
         in: path
+        type: integer
         required: true
-        schema:
-          type: integer
-          example: 2
+        description: ID of the other user in the conversation
+        example: 456
     responses:
       200:
-        description: List of messages between the sender and receiver
-        content:
-          application/json:
-            schema:
-              type: array
-              items:
-                type: object
-                properties:
-                  id:
-                    type: integer
-                    example: 100
-                  sender_id:
-                    type: integer
-                    example: 1
-                  receiver_id:
-                    type: integer
-                    example: 2
-                  content:
-                    type: string
-                    example: "Hey, let's connect!"
-                  timestamp:
-                    type: string
-                    example: "2025-06-25T10:30:00"
+        description: List of messages in the conversation
+        schema:
+          type: array
+          items:
+            type: object
+            properties:
+              id:
+                type: integer
+                example: 1
+              sender_id:
+                type: integer
+                example: 123
+              receiver_id:
+                type: integer
+                example: 456
+              content:
+                type: string
+                example: "Hello, how are you?"
+              timestamp:
+                type: string
+                format: date-time
+                example: "2025-06-27T14:32:00Z"
+      401:
+        description: Unauthorized - Missing or invalid JWT
     """
+    sender_id = get_jwt_identity()
+
     messages = Message.query.filter(
         ((Message.sender_id == sender_id) & (Message.receiver_id == receiver_id)) |
         ((Message.sender_id == receiver_id) & (Message.receiver_id == sender_id))
@@ -602,3 +502,129 @@ def get_conversation(sender_id, receiver_id):
         for msg in messages
     ]
     return jsonify(result), 200
+
+
+@business_bp.route('/api/photos', methods=['POST'])
+@jwt_required()
+def upload_photo():
+    """
+    Upload a photo for the authenticated user.
+    ---
+    tags:
+      - Photos
+    security:
+      - Bearer: []
+    consumes:
+      - multipart/form-data
+    parameters:
+      - name: Authorization
+        in: header
+        description: 'JWT token as: Bearer <your_token>'
+        required: true
+        schema:
+          type: string
+          example: "Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6..."
+      - name: photo
+        in: formData
+        type: file
+        required: true
+        description: The photo file to upload
+    responses:
+      201:
+        description: Photo uploaded successfully
+        schema:
+          type: object
+          properties:
+            message:
+              type: string
+              example: Uploaded!
+            photo_url:
+              type: string
+              example: "https://res.cloudinary.com/demo/image/upload/v1234567890/sample.jpg"
+      400:
+        description: Missing photo file
+      404:
+        description: User not found
+      401:
+        description: Unauthorized - Missing or invalid JWT
+    """
+    user_id = get_jwt_identity()
+    
+    user = User.query.get(user_id)
+    if not user:
+        return jsonify({"message": "User not found"}), 404
+
+    file = request.files.get('photo')
+    if not file:
+        return jsonify({"error": "photo file required"}), 400
+
+    result = cloudinary.uploader.upload(file)
+
+    photo_url = result.get('secure_url')
+    new_photo = SavedPhoto(user_id=user_id, photo_url=photo_url)
+    db.session.add(new_photo)
+    db.session.commit()
+
+    return jsonify({"message": "Uploaded!", "photo_url": photo_url}), 201
+
+
+@business_bp.route('/api/photos', methods=['GET'])
+def list_photos():
+    """
+    List all uploaded photos for the authenticated user.
+    ---
+    tags:
+      - Photos
+    security:
+      - Bearer: []
+    parameters:
+      - name: Authorization
+        in: header
+        description: 'JWT token as: Bearer <your_token>'
+        required: true
+        schema:
+          type: string
+          example: "Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6..."
+    responses:
+      200:
+        description: List of user photos
+        schema:
+          type: array
+          items:
+            type: object
+            properties:
+              id:
+                type: integer
+                example: 1
+              photo_url:
+                type: string
+                example: "https://res.cloudinary.com/demo/image/upload/v1234567890/sample.jpg"
+              uploaded_at:
+                type: string
+                format: date-time
+                example: "2025-06-27T12:34:56Z"
+      404:
+        description: User not found
+        schema:
+          type: object
+          properties:
+            message:
+              type: string
+              example: User not found
+      401:
+        description: Unauthorized - Missing or invalid JWT
+    """
+    user_id = get_jwt_identity()
+    
+    user = User.query.get(user_id)
+    if not user:
+        return jsonify({"message": "User not found"}), 404
+
+    photos = SavedPhoto.query.filter_by(user_id=user_id).order_by(SavedPhoto.uploaded_at.desc()).all()
+    return jsonify([
+        {
+            "id": p.id,
+            "photo_url": p.file_path,
+            "uploaded_at": p.uploaded_at.isoformat()
+        } for p in photos
+    ]), 200
