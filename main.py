@@ -205,8 +205,53 @@ def get_matches():
     return jsonify(matches), 200
 
 
+@app.route('/api/referral', methods=['GET'])
+@jwt_required()
+def get_referral_code():
+    """
+    Get the current user's referral code
+    ---
+    tags:
+      - Referral
+    security:
+      - Bearer: []
+    parameters:
+      - name: Authorization
+        in: header
+        description: 'JWT token as: Bearer <your_token>'
+        required: true
+        schema:
+          type: string
+          example: "Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6..."
+    responses:
+      200:
+        description: Referral code retrieved successfully
+        schema:
+          type: object
+          properties:
+            referral_code:
+              type: string
+              example: "X9T7ABCD"
+            referral_points:
+              type: integer
+              example: 15
+      404:
+        description: User or referral code not found
+        schema:
+          type: object
+          properties:
+            message:
+              type: string
+    """
+    user_id = get_jwt_identity()
+    user = User.query.get(user_id)
+    if not user or not user.referral_code:
+        return jsonify({"message": "Referral code not found"}), 404
 
-
+    return jsonify({
+        "referral_code": user.referral_code,
+        "referral_points": user.referral_points
+    }), 200
 
 
 @app.route('/show_temp_users')
@@ -240,5 +285,5 @@ def show_users_and_preferences():
 
 if __name__ == "__main__":
     with app.app_context():
-        db.drop_all()
+        db.create_all()
     app.run(debug=True)

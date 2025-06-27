@@ -365,8 +365,6 @@ def get_users_with_business():
     return jsonify(result), 200
 
 
-
-
 @business_bp.route('/messages', methods=['POST'])
 @jwt_required()
 def send_message():

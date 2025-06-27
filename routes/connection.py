@@ -7,8 +7,7 @@ from core.config import Config
 from core.extensions import db
 from core.models import User, Connection
 
-
-connection_bp = Blueprint('business', __name__)
+connection_bp = Blueprint('connection', __name__)
 load_dotenv()
 
 # Send a connection request

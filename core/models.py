@@ -17,8 +17,9 @@ class User(db.Model):
     email = db.Column(db.String(100), unique=True, nullable=True)
     phone = db.Column(db.String(20), unique=True, nullable=True)
     username = db.Column(db.String(100), unique=True, nullable=True)
-    password_hash = db.Column(db.String(200), nullable=True)
-    #is_business_user = db.Column(db.Boolean, default=False)
+    password_hash = db.Column(db.String(200), nullable=True) 
+    referral_code = db.Column(db.String(20), unique=True, nullable=True)  # e.g. "ABC123"
+    referral_points = db.Column(db.Integer, default=0, nullable=False)
 
     love_basic_info = db.relationship('LoveBasicInfo', backref='user', uselist=False)
     personality = db.relationship('UserPersonality', backref='user', uselist=False)

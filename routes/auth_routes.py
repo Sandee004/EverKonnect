@@ -1,7 +1,7 @@
 from core.imports import (
     request, jsonify, Message,
     create_access_token, JWTManager, get_jwt_identity, jwt_required, render_template,
-    datetime, timedelta, random, Client, Blueprint, base64, io, np, Image, cv2, redirect, url_for, os, load_dotenv
+    datetime, timedelta, random, Client, Blueprint, base64, io, np, Image, cv2, redirect, string, url_for, os, load_dotenv
 )
 from flask import Flask
 from core.config import Config
@@ -12,6 +12,9 @@ from authlib.integrations.flask_client import OAuth
 auth_bp = Blueprint('auth', __name__)
 load_dotenv()
 
+def generate_referral_code(length=8):
+    # Generate a random alphanumeric uppercase referral code
+    return ''.join(random.choices(string.ascii_uppercase + string.digits, k=length))
 
 def send_email(to, subject, body):
     msg = Message(subject=subject, recipients=[to])
@@ -164,6 +167,7 @@ def verify_otp():
     email = request.json.get('email')
     phone = request.json.get('phone')
     otp = request.json.get('otp')
+    referral_code = request.json.get('referral_code')
 
     if not otp or (not email and not phone):
         return jsonify({"error": "OTP and email or phone is required"}), 400
@@ -186,9 +190,16 @@ def verify_otp():
     
     # Move to main users table
     user = User(email=temp_user.email, phone=temp_user.phone)
+
+    if referral_code:
+        referrer = User.query.filter_by(referral_code=referral_code).first()
+        if referrer:
+            referrer.referral_points += 5
+        else:
+            return jsonify({"error": "Invalid referral code"}), 400
+        
+    user.referral_code = generate_referral_code()
     db.session.add(user)
-    
-    # Delete from temp table
     db.session.delete(temp_user)
     db.session.commit()
 
@@ -196,7 +207,8 @@ def verify_otp():
     return jsonify({
         "message": "OTP verified successfully",
         "access_token": access_token,
-        "user_id": user.id
+        "user_id": user.id,
+        "referral_code": user.referral_code,
     }), 200
 
 
@@ -485,11 +497,21 @@ def linkedin_callback():
     first_name = profile.get('localizedFirstName')
     last_name = profile.get('localizedLastName')
     email = email_data['elements'][0]['handle~']['emailAddress']
+    referral_code = request.args.get('referral_code')
 
     # Check if user exists or create
     user = User.query.filter_by(email=email).first()
     if not user:
         user = User(email=email, username=f"{first_name}_{last_name}")
+
+        if referral_code:
+            referrer = User.query.filter_by(referral_code=referral_code).first()
+            if referrer:
+                referrer.referral_points += 5  # Award 5 points
+            else:
+                return jsonify({"error": "Invalid referral code"}), 400
+            
+        user.referral_code = generate_referral_code()
         db.session.add(user)
         db.session.commit()
 
@@ -504,7 +526,8 @@ def linkedin_callback():
         user_id=user.id,
         email=email,
         first_name=first_name,
-        last_name=last_name
+        last_name=last_name,
+        referral_code=user.referral_code
     ), 200
 
 
@@ -536,10 +559,21 @@ def google_callback():
     picture = profile.get('picture')
     google_id = profile.get('id')
 
+    referral_code = request.args.get('referral_code')
+
     # Check if user exists
     user = User.query.filter_by(email=email).first()
     if not user:
         user = User(email=email, username=email.split('@')[0])
+
+        if referral_code:
+            referrer = User.query.filter_by(referral_code=referral_code).first()
+            if referrer:
+                referrer.referral_points += 5  # Award 5 points
+            else:
+                return jsonify({"error": "Invalid referral code"}), 400
+            
+        user.referral_code = generate_referral_code()
         db.session.add(user)
         db.session.commit()
 
@@ -556,7 +590,8 @@ def google_callback():
         first_name=first_name,
         last_name=last_name,
         picture=picture,
-        google_id=google_id
+        google_id=google_id,
+        referral_code=user.referral_code
     ), 200
 
 
@@ -586,9 +621,20 @@ def facebook_callback():
     facebook_id = profile.get('id')
     name = profile.get('name')
 
+    referral_code =  request.args.get('referral_code')
+
     user = User.query.filter_by(email=email).first()
     if not user:
         user = User(email=email, username=name)
+
+        if referral_code:
+            referrer = User.query.filter_by(referral_code=referral_code).first()
+            if referrer:
+                referrer.referral_points += 5  # Award 5 points
+            else:
+                return jsonify({"error": "Invalid referral code"}), 400
+            
+        user.referral_code = generate_referral_code()
         db.session.add(user)
         db.session.commit()
 
@@ -599,5 +645,6 @@ def facebook_callback():
         user_id=user.id,
         email=email,
         name=name,
-        facebook_id=facebook_id
+        facebook_id=facebook_id,
+        referral_code=user.referral_code
     )
