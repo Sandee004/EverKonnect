@@ -164,10 +164,11 @@ def verify_otp():
             error:
               type: string
     """
-    email = request.json.get('email')
-    phone = request.json.get('phone')
-    otp = request.json.get('otp')
-    referral_code = request.json.get('referral_code')
+    data = request.get_json(silent=True) or request.form
+    email = data.get('email')
+    phone = data.get('phone')
+    otp = data.get('otp')
+    referral_code = data.get('referral_code')
 
     if not otp or (not email and not phone):
         return jsonify({"error": "OTP and email or phone is required"}), 400
@@ -177,9 +178,6 @@ def verify_otp():
         temp_user = TempUser.query.filter_by(email=email).first()
     elif phone:
         temp_user = TempUser.query.filter_by(phone=phone).first()
-    
-    if not temp_user:
-        return jsonify({"error": "User not found"}), 404
     
     # Verify OTP
     expiry_time = temp_user.otp_created_at + timedelta(minutes=20)
