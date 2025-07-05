@@ -164,11 +164,11 @@ def verify_otp():
             error:
               type: string
     """
-    data = request.get_json(silent=True) or request.form
-    email = data.get('email')
-    phone = data.get('phone')
-    otp = data.get('otp')
-    referral_code = data.get('referral_code')
+  
+    email = request.json.get('email')
+    phone = request.json.get('phone')
+    otp = request.json.get('otp')
+    referral_code = request.json.get('referral_code')
 
     if not otp or (not email and not phone):
         return jsonify({"error": "OTP and email or phone is required"}), 400

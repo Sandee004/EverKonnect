@@ -285,7 +285,24 @@ def show_users_and_preferences():
         result.append(user_data)
     return jsonify(result)
 
+
+def prepopulate_temp_users():
+    users = [
+        TempUser(email="test1@example.com", phone="+1234567890", otp_code="111111", otp_created_at=datetime.utcnow()),
+        TempUser(email="test2@example.com", phone="+1987654321", otp_code="222222", otp_created_at=datetime.utcnow()),
+        TempUser(email="test3@example.com", phone="+1122334455", otp_code="333333", otp_created_at=datetime.utcnow()),
+    ]
+
+    try:
+        db.session.bulk_save_objects(users)
+        db.session.commit()
+        print("Temp users prepopulated successfully.")
+    except Exception as e:
+        db.session.rollback()
+        print(f"Error prepopulating temp users: {e}")
+
 if __name__ == "__main__":
     with app.app_context():
         db.create_all()
+        prepopulate_temp_users()
     app.run(debug=True)
