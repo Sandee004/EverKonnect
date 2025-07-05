@@ -93,7 +93,7 @@ def auth():
     if existing_user:
         return jsonify({"error": "Account has already been created and verified. Login to continue"}), 400
     
-    # Find or create temp user
+  
     temp_user = None
     if email:
         temp_user = TempUser.query.filter_by(email=email).first()
