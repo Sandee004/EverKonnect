@@ -182,11 +182,15 @@ def verify_otp():
         return jsonify({"error": "User not found"}), 404
     
     # Verify OTP
-    expiry_time = temp_user.otp_created_at + timedelta(minutes=5)
+    expiry_time = temp_user.otp_created_at + timedelta(minutes=20)
     if temp_user.otp_code != otp:
         return jsonify({"error": "Invalid OTP"}), 400
+    
     elif datetime.utcnow() > expiry_time:
-        return jsonify({"error": "OTP expired"}), 400
+        db.session.delete(temp_user)
+        db.session.commit()
+        return jsonify({"error": "OTP expired. Please request a new one."}), 400
+
     
     # Move to main users table
     user = User(email=temp_user.email, phone=temp_user.phone)
