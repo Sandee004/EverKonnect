@@ -287,10 +287,30 @@ def show_users_and_preferences():
 
 
 def prepopulate_temp_users():
+    # Prevent duplicate inserts
+    if TempUser.query.first():
+        print("Temp users already exist. Skipping prepopulation.")
+        return
+
     users = [
-        TempUser(email="test1@example.com", phone="+1234567890", otp_code="111111", otp_created_at=datetime.utcnow()),
-        TempUser(email="test2@example.com", phone="+1987654321", otp_code="222222", otp_created_at=datetime.utcnow()),
-        TempUser(email="test3@example.com", phone="+1122334455", otp_code="333333", otp_created_at=datetime.utcnow()),
+        TempUser(
+            email="test1@example.com",
+            phone="+1234567890",
+            otp_code="111111",
+            otp_created_at=datetime.utcnow()
+        ),
+        TempUser(
+            email="test2@example.com",
+            phone="+1987654321",
+            otp_code="222222",
+            otp_created_at=datetime.utcnow()
+        ),
+        TempUser(
+            email="test3@example.com",
+            phone="+1122334455",
+            otp_code="333333",
+            otp_created_at=datetime.utcnow()
+        ),
     ]
 
     try:
@@ -300,7 +320,7 @@ def prepopulate_temp_users():
     except Exception as e:
         db.session.rollback()
         print(f"Error prepopulating temp users: {e}")
-
+        
 if __name__ == "__main__":
     with app.app_context():
         db.create_all()

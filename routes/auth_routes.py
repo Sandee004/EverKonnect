@@ -173,27 +173,22 @@ def verify_otp():
     if not otp or (not email and not phone):
         return jsonify({"error": "OTP and email or phone is required"}), 400
 
-    temp_user = None
     if email:
-        temp_user = TempUser.query.filter_by(email=email).first()
-    elif phone:
-        temp_user = TempUser.query.filter_by(phone=phone).first()
-    
+        temp_user = TempUser.query.filter_by(email=email, otp_code=otp).first()
+    else:
+        temp_user = TempUser.query.filter_by(phone=phone, otp_code=otp).first()
+
     if not temp_user:
-        return jsonify({"error": "User not found"}), 404
+        return jsonify({"error": "Invalid email/phone or OTP"}), 404
     
     # Verify OTP
     expiry_time = temp_user.otp_created_at + timedelta(minutes=20)
-    if temp_user.otp_code != otp:
-        return jsonify({"error": "Invalid OTP"}), 400
-    
-    elif datetime.utcnow() > expiry_time:
+    if datetime.utcnow() > expiry_time:
         db.session.delete(temp_user)
         db.session.commit()
         return jsonify({"error": "OTP expired. Please request a new one."}), 400
 
-    
-    # Move to main users table
+    # Move to real users table
     user = User(email=temp_user.email, phone=temp_user.phone)
 
     if referral_code:
