@@ -91,7 +91,7 @@ def auth():
         existing_user = User.query.filter_by(phone=phone).first()
     
     if existing_user:
-        return jsonify({"error": "User already exists"}), 400
+        return jsonify({"error": "Account has already been created and verified. Login to continue"}), 400
     
     # Find or create temp user
     temp_user = None
