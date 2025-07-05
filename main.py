@@ -312,7 +312,6 @@ def prepopulate_temp_users():
             otp_created_at=datetime.utcnow()
         ),
     ]
-
     try:
         db.session.bulk_save_objects(users)
         db.session.commit()
