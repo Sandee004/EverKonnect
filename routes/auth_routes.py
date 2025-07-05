@@ -179,6 +179,9 @@ def verify_otp():
     elif phone:
         temp_user = TempUser.query.filter_by(phone=phone).first()
     
+    if not temp_user:
+        return jsonify({"error": "User not found"}), 404
+    
     # Verify OTP
     expiry_time = temp_user.otp_created_at + timedelta(minutes=20)
     if temp_user.otp_code != otp:
