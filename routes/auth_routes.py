@@ -82,8 +82,8 @@ def auth():
     
     if not email and not phone:
         return jsonify({"error": "Email or phone is required"}), 400
-    
-    # Check if user already exists in main users table
+
+    # Check if user already exists
     existing_user = None
     if email:
         existing_user = User.query.filter_by(email=email).first()
@@ -92,33 +92,43 @@ def auth():
     
     if existing_user:
         return jsonify({"error": "Account has already been created and verified. Login to continue"}), 400
-    
-  
-    temp_user = None
-    if email:
-        temp_user = TempUser.query.filter_by(email=email).first()
-    elif phone:
-        temp_user = TempUser.query.filter_by(phone=phone).first()
-    
-    if not temp_user:
-        temp_user = TempUser(email=email, phone=phone)
-        db.session.add(temp_user)
-    
-    # Generate and save OTP
-    otp = str(random.randint(100000, 999999))
-    print(otp)
-    temp_user.otp_code = otp
-    temp_user.otp_created_at = datetime.utcnow()
-    db.session.commit()
-    print("Added entry to db")
-    
-    if email:
-      
-      send_otp_email(email, otp)
-      return jsonify({"message": f"OTP sent to {email}"}), 200
-    elif phone:
-        send_sms_otp(phone, otp)
-        return jsonify({"message": f"OTP sent to {phone}"}), 200
+
+    try:
+        # Check or create temp user
+        temp_user = None
+        if email:
+            temp_user = TempUser.query.filter_by(email=email).first()
+        elif phone:
+            temp_user = TempUser.query.filter_by(phone=phone).first()
+
+        if not temp_user:
+            temp_user = TempUser(email=email, phone=phone)
+            db.session.add(temp_user)
+
+        # Generate OTP
+        otp = str(random.randint(100000, 999999))
+        temp_user.otp_code = otp
+        temp_user.otp_created_at = datetime.utcnow()
+
+        # Attempt to send OTP
+        if email:
+            send_otp_email(email, otp)
+        elif phone:
+            send_sms_otp(phone, otp)
+
+        # Only commit if OTP was sent successfully
+        db.session.commit()
+        print("Added entry to db")
+        
+        if email:
+            return jsonify({"message": f"OTP sent to {email}"}), 200
+        else:
+            return jsonify({"message": f"OTP sent to {phone}"}), 200
+
+    except Exception as e:
+        db.session.rollback()  # Undo any partial DB changes
+        print(f"OTP send failed: {e}")
+        return jsonify({"error": "Failed to send OTP. Please try again later."}), 500
 
 
 @auth_bp.route('/api/verify-otp', methods=['POST'])
