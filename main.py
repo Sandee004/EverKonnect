@@ -42,7 +42,7 @@ def cleanup_expired_temp_users():
     while True:
         try:
             with app.app_context():
-                expiry_time = datetime.utcnow() - timedelta(hours=1)
+                expiry_time = datetime.utcnow() - timedelta(hours=72)
                 expired_users = TempUser.query.filter(TempUser.created_at < expiry_time).all()
                 
                 if expired_users:
@@ -55,7 +55,7 @@ def cleanup_expired_temp_users():
                 time.sleep(3600)  # 1800 seconds = 30 minutes
         except Exception as e:
             print(f"Cleanup error: {e}")
-            time.sleep(300)  # Wait 5 minutes on error
+            time.sleep(3600)  # Wait 5 minutes on error
 
 # Start cleanup thread when app starts
 cleanup_thread = threading.Thread(target=cleanup_expired_temp_users, daemon=True)
