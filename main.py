@@ -37,29 +37,6 @@ app = create_app()
 load_dotenv()
 
 
-def cleanup_expired_temp_users():
-    """Background function to clean expired temp users"""
-    while True:
-        try:
-            with app.app_context():
-                expiry_time = datetime.utcnow() - timedelta(hours=72)
-                expired_users = TempUser.query.filter(TempUser.created_at < expiry_time).all()
-                
-                if expired_users:
-                    for user in expired_users:
-                        db.session.delete(user)
-                    db.session.commit()
-                    print(f"Cleaned up {len(expired_users)} expired temp users")
-                
-                time.sleep(72 * 3600)
-        except Exception as e:
-            print(f"Cleanup error: {e}")
-            time.sleep(3600)
-
-# Start cleanup thread when app starts
-cleanup_thread = threading.Thread(target=cleanup_expired_temp_users, daemon=True)
-cleanup_thread.start()
-
 
 def model_to_dict(model):
     """Helper to convert a SQLAlchemy model to a dict."""
