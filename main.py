@@ -51,11 +51,10 @@ def cleanup_expired_temp_users():
                     db.session.commit()
                     print(f"Cleaned up {len(expired_users)} expired temp users")
                 
-                # Sleep for 30 minutes before next cleanup
-                time.sleep(3600)  # 1800 seconds = 30 minutes
+                time.sleep(72 * 3600)
         except Exception as e:
             print(f"Cleanup error: {e}")
-            time.sleep(3600)  # Wait 5 minutes on error
+            time.sleep(3600)
 
 # Start cleanup thread when app starts
 cleanup_thread = threading.Thread(target=cleanup_expired_temp_users, daemon=True)
