@@ -8,6 +8,7 @@ from core.config import Config
 from core.extensions import db, mail, bcrypt, oauth
 from core.models import User, TempUser
 from authlib.integrations.flask_client import OAuth
+import cloudinary.uploader
 
 auth_bp = Blueprint('auth', __name__)
 load_dotenv()
@@ -107,6 +108,7 @@ def auth():
 
         # Generate OTP
         otp = str(random.randint(100000, 999999))
+        print(otp)
         temp_user.otp_code = otp
         temp_user.otp_created_at = datetime.utcnow()
 
@@ -301,69 +303,92 @@ responses:
     return jsonify({"message": "Credentials saved successfully"}), 200
 
 
-@auth_bp.route('/api/verify-face', methods=['POST'])
-def verify_face():
+@auth_bp.route('/api/upload-profile-pic', methods=['POST'])
+@jwt_required()
+def upload_profile_pic():
     """
-    Verify that the provided image contains at least one face
+    Upload user profile picture
     ---
     tags:
-      - Authentication
+      - User
+    security:
+      - Bearer: []
+    consumes:
+      - multipart/form-data
     parameters:
-      - in: body
-        name: body
+      - name: Authorization
+        in: header
+        type: string
         required: true
-        schema:
-          type: object
-          required:
-            - face_image
-          properties:
-            face_image:
-              type: string
-              description: Base64-encoded face image
-              example: "<Base64 string>"
+        description: JWT token as Bearer <your_token>
+        example: "Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6..."
+      - name: face_image
+        in: formData
+        type: file
+        required: true
+        description: Profile image file to upload
     responses:
       200:
-        description: Face detected successfully
+        description: Profile picture uploaded successfully
         schema:
           type: object
           properties:
             message:
               type: string
-              example: "1 face(s) detected"
+              example: "Profile picture uploaded successfully"
+            image_url:
+              type: string
+              example: "https://res.cloudinary.com/your-cloud/image/upload/v1234/profile.jpg"
       400:
-        description: No face detected or bad image
+        description: Missing image file
         schema:
           type: object
           properties:
             error:
               type: string
-              example: "No face detected"
+              example: "No image file provided"
+      404:
+        description: User not found
+        schema:
+          type: object
+          properties:
+            error:
+              type: string
+              example: "User not found"
+      500:
+        description: Upload failed
+        schema:
+          type: object
+          properties:
+            error:
+              type: string
+              example: "Upload failed: something went wrong"
     """
-    data = request.get_json()
-    face_image_b64 = data.get('face_image')
-    if not face_image_b64:
-        return jsonify({"error": "face_image is required"}), 400
+    user_id = get_jwt_identity()
+
+    if 'face_image' not in request.files:
+        return jsonify({"error": "No image file provided"}), 400
+
+    image_file = request.files['face_image']
 
     try:
-        # Decode the base64 image
-        image_data = base64.b64decode(face_image_b64)
-        image = Image.open(io.BytesIO(image_data)).convert('RGB')
-        image_np = np.array(image)
+        upload_result = cloudinary.uploader.upload(image_file)
+        image_url = upload_result.get("secure_url")
 
-        # Load OpenCV's built-in face detector
-        face_cascade = cv2.CascadeClassifier(
-            cv2.data.haarcascades + 'haarcascade_frontalface_default.xml'
-        )
-        gray = cv2.cvtColor(image_np, cv2.COLOR_RGB2GRAY)
-        faces = face_cascade.detectMultiScale(gray, scaleFactor=1.1, minNeighbors=5)
+        user = User.query.get(user_id)
+        if not user:
+            return jsonify({"error": "User not found"}), 404
 
-        if len(faces) == 0:
-            return jsonify({"error": "No face detected"}), 400
-        else:
-            return jsonify({"message": f"{len(faces)} face(s) detected"}), 200
+        user.profile_pic = image_url
+        db.session.commit()
+
+        return jsonify({
+            "message": "Profile picture uploaded successfully",
+            "image_url": image_url
+        }), 200
 
     except Exception as e:
-        return jsonify({"error": f"Failed to process image: {str(e)}"}), 400
+        return jsonify({"error": f"Upload failed: {str(e)}"}), 500
 
 
 @auth_bp.route('/api/login', methods=['POST'])
@@ -400,6 +425,7 @@ def login():
     """
     identifier = request.json.get('identifier')  # Can be username or email
     password = request.json.get('password')
+    print(password)
 
     if not identifier or not password:
         return jsonify({"error": "Identifier and password are required"}), 400
@@ -409,22 +435,19 @@ def login():
         (User.username == identifier) | (User.email == identifier)
     ).first()
 
-    if not user or not user.password_hash:
+    if not user:
+        print("User not found")
         return jsonify({"error": "Invalid credentials"}), 401
+
+    print("User found:", user.username)
+    print("Stored hash:", user.password_hash)
 
     if not bcrypt.check_password_hash(user.password_hash, password):
+        print("Password mismatch")
         return jsonify({"error": "Invalid credentials"}), 401
 
-    # Create access token
-    access_token = create_access_token(
-        identity=user.id,
-        expires_delta=timedelta(hours=24)
-    )
-
-    return jsonify({
-        "access_token": access_token,
-        "user_id": user.id
-    }), 200
+    access_token = create_access_token(identity=user.id, expires_delta=timedelta(hours=24))
+    return jsonify({"access_token": access_token, "user_id": user.id}), 200
 
 
 @auth_bp.route('/api/user/profile', methods=['GET'])
