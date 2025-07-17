@@ -180,7 +180,6 @@ def verify_otp():
     email = request.json.get('email')
     phone = request.json.get('phone')
     otp = request.json.get('otp')
-    referral_code = request.json.get('referral_code')
 
     if not otp or (not email and not phone):
         return jsonify({"error": "OTP and email or phone is required"}), 400
@@ -202,15 +201,6 @@ def verify_otp():
 
     # Move to real users table
     user = User(email=temp_user.email, phone=temp_user.phone)
-
-    if referral_code:
-        referrer = User.query.filter_by(referral_code=referral_code).first()
-        if referrer:
-            referrer.referral_points += 5
-        else:
-            return jsonify({"error": "Invalid referral code"}), 400
-        
-    user.referral_code = generate_referral_code()
     db.session.add(user)
     db.session.delete(temp_user)
     db.session.commit()
@@ -220,7 +210,6 @@ def verify_otp():
         "message": "OTP verified successfully",
         "access_token": access_token,
         "user_id": user.id,
-        "referral_code": user.referral_code,
     }), 200
 
 
@@ -254,6 +243,9 @@ parameters:
           type: string
           format: password
           example: "Str0ngP@ssword!"
+        referral_code:
+          type: string
+          example: "AB7P09"
 responses:
   200:
     description: Credentials saved successfully
@@ -283,6 +275,7 @@ responses:
     
     username = request.json.get('username')
     password = request.json.get('password')
+    referral_code = request.json.get('referral_code')
 
     if not username or not password:
         return jsonify({"error": "username and password are required"}), 400
@@ -295,6 +288,16 @@ responses:
     if existing_user and existing_user.id != user.id:
         return jsonify({"error": "Username already exists"}), 400
 
+    if referral_code:
+      referrer = User.query.filter_by(referral_code=referral_code).first()
+      if referrer:
+          referrer.referral_points += 5
+          db.session.add(referrer)
+      else:
+          return jsonify({"error": "Invalid referral code"}), 400
+
+        
+    user.referral_code = generate_referral_code()
     password_hash = bcrypt.generate_password_hash(password).decode('utf-8')
     user.username = username
     user.password_hash = password_hash
