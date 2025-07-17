@@ -484,6 +484,7 @@ def get_user_profile():
         "id": user.id,
         "email": user.email,
         "phone": user.phone,
+        "profile": user.profile_pic,
         "username": user.username,
         "nickname": user.nickname,
         "fullname": user.fullname,
