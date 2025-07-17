@@ -494,7 +494,7 @@ def get_user_profile():
         "country_of_origin": user.country_of_origin,
         "tribe": user.tribe,
         "current_location": user.current_location,
-        "skin_tone": user.skin_tone
+        "skin_tone": user.skin_tone,
     }
     
     return jsonify(user_data), 200

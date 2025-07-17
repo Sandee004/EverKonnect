@@ -157,7 +157,10 @@ def get_matches():
         return jsonify({"message": "Preferences not set"}), 400
 
     # Get all other candidates
-    candidates = User.query.filter(User.id != current_user_id).all()
+    candidates = User.query.filter(
+        User.id != current_user_id,
+        User.account_type == user.account_type
+    ).all()
 
     matches = []
     for candidate in candidates:
