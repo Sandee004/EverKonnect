@@ -37,6 +37,9 @@ app = create_app()
 load_dotenv()
 
 
+@app.route('/ping')
+def ping():
+    return "Pong", 200
 
 def model_to_dict(model):
     """Helper to convert a SQLAlchemy model to a dict."""

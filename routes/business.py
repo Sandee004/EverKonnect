@@ -567,6 +567,7 @@ def upload_photo():
 
 
 @business_bp.route('/api/photos', methods=['GET'])
+@jwt_required()
 def list_photos():
     """
     List all uploaded photos for the authenticated user.

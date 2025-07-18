@@ -488,7 +488,7 @@ def get_user_profile():
         "phone": user.phone,
         "profile": user.profile_pic,
         "username": user.username,
-        "nickname": user.nickname,
+        #"nickname": user.nickname,
         "fullname": user.fullname,
         "date_of_birth": user.date_of_birth.isoformat() if user.date_of_birth else None,
         "age_range": user.age_range,
