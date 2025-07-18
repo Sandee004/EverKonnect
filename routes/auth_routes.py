@@ -306,92 +306,91 @@ responses:
     return jsonify({"message": "Credentials saved successfully"}), 200
 
 
-@auth_bp.route('/api/upload-profile-pic', methods=['POST'])
+@auth_bp.route('/api/verify-face', methods=['POST'])
 @jwt_required()
-def upload_profile_pic():
+def verify_face():
     """
-    Upload user profile picture
+    Verify that the provided image contains at least one face
     ---
     tags:
-      - User
+      - Authentication
     security:
       - Bearer: []
-    consumes:
-      - multipart/form-data
     parameters:
       - name: Authorization
         in: header
-        type: string
-        required: true
         description: JWT token as Bearer <your_token>
-        example: "Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6..."
-      - name: face_image
-        in: formData
-        type: file
         required: true
-        description: Profile image file to upload
+        type: string
+        example: "Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6..."
+      - name: body
+        in: body
+        required: true
+        schema:
+          type: object
+          required:
+            - face_image
+          properties:
+            face_image:
+              type: string
+              description: Base64-encoded face image
+              example: "<Base64 string>"
     responses:
       200:
-        description: Profile picture uploaded successfully
+        description: Face detected successfully
         schema:
           type: object
           properties:
             message:
               type: string
-              example: "Profile picture uploaded successfully"
-            image_url:
-              type: string
-              example: "https://res.cloudinary.com/your-cloud/image/upload/v1234/profile.jpg"
+              example: "1 face(s) detected"
       400:
-        description: Missing image file
+        description: No face detected or bad image
         schema:
           type: object
           properties:
             error:
               type: string
-              example: "No image file provided"
-      404:
-        description: User not found
-        schema:
-          type: object
-          properties:
-            error:
-              type: string
-              example: "User not found"
-      500:
-        description: Upload failed
-        schema:
-          type: object
-          properties:
-            error:
-              type: string
-              example: "Upload failed: something went wrong"
+              example: "No face detected"
     """
     user_id = get_jwt_identity()
 
-    if 'face_image' not in request.files:
-        return jsonify({"error": "No image file provided"}), 400
-
-    image_file = request.files['face_image']
+    if not user_id:
+        return jsonify({"error": "Missing credentials"})
+    
+    data = request.get_json()
+    face_image_b64 = data.get('face_image')
+    if not face_image_b64:
+        return jsonify({"error": "face_image is required"}), 400
 
     try:
-        upload_result = cloudinary.uploader.upload(image_file)
-        image_url = upload_result.get("secure_url")
+        image_data = base64.b64decode(face_image_b64)
+        image = Image.open(io.BytesIO(image_data)).convert('RGB')
+        image_np = np.array(image)
 
+        # Load OpenCV's built-in face detector
+        face_cascade = cv2.CascadeClassifier(
+            cv2.data.haarcascades + 'haarcascade_frontalface_default.xml'
+        )
+        gray = cv2.cvtColor(image_np, cv2.COLOR_RGB2GRAY)
+        faces = face_cascade.detectMultiScale(gray, scaleFactor=1.1, minNeighbors=5)
+
+        if len(faces) == 0:
+            return jsonify({"error": "No face detected"}), 400
+        
+
+         # Save Base64 image string to user's profile
         user = User.query.get(user_id)
         if not user:
             return jsonify({"error": "User not found"}), 404
 
-        user.profile_pic = image_url
+        user.profile_pic = face_image_b64
         db.session.commit()
 
-        return jsonify({
-            "message": "Profile picture uploaded successfully",
-            "image_url": image_url
-        }), 200
+        return jsonify({"message": f"{len(faces)} face(s) detected and saved"}), 200
 
     except Exception as e:
-        return jsonify({"error": f"Upload failed: {str(e)}"}), 500
+        return jsonify({"error": f"Failed to process image: {str(e)}"}), 400
 
 
 @auth_bp.route('/api/login', methods=['POST'])
