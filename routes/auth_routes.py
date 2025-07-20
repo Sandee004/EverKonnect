@@ -478,27 +478,30 @@ def get_user_profile():
     """
     current_user_id = get_jwt_identity()
     user = User.query.get(current_user_id)
-    
+
     if not user:
         return jsonify({"error": "User not found"}), 404
-    
+
+    # LoveBasicInfo is related as `user.love_basic_info` (because of uselist=False)
+    love_info = user.love_basic_info
+
     user_data = {
         "id": user.id,
         "email": user.email,
         "phone": user.phone,
-        "profile": user.profile_pic,
+        "profile_pic": user.profile_pic,
         "username": user.username,
-        #"nickname": user.nickname,
-        #"fullname": user.fullname,
-        "date_of_birth": user.date_of_birth.isoformat() if user.date_of_birth else None,
-        "age_range": user.age_range,
-        "marital_status": user.marital_status,
-        "country_of_origin": user.country_of_origin,
-        "tribe": user.tribe,
-        "current_location": user.current_location,
-        "skin_tone": user.skin_tone,
+        "fullname": love_info.fullname if love_info else None,
+        "nickname": love_info.nickname if love_info else None,
+        "date_of_birth": love_info.date_of_birth.isoformat() if love_info and love_info.date_of_birth else None,
+        "age_range": love_info.age_range if love_info else None,
+        "marital_status": love_info.marital_status if love_info else None,
+        "country_of_origin": love_info.country_of_origin if love_info else None,
+        "tribe": love_info.tribe if love_info else None,
+        "current_location": love_info.current_location if love_info else None,
+        "skin_tone": love_info.skin_tone if love_info else None,
     }
-    
+
     return jsonify(user_data), 200
 
 
