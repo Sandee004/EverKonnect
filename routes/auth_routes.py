@@ -489,7 +489,7 @@ def get_user_profile():
         "profile": user.profile_pic,
         "username": user.username,
         #"nickname": user.nickname,
-        "fullname": user.fullname,
+        #"fullname": user.fullname,
         "date_of_birth": user.date_of_birth.isoformat() if user.date_of_birth else None,
         "age_range": user.age_range,
         "marital_status": user.marital_status,
