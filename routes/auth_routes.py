@@ -425,8 +425,9 @@ def login():
       401:
         description: Invalid credentials
     """
-    identifier = request.json.get('identifier')  # Can be username or email
+    identifier = request.json.get('identifier')
     password = request.json.get('password')
+    print(identifier)
     print(password)
 
     if not identifier or not password:
@@ -489,7 +490,8 @@ def get_user_profile():
         "id": user.id,
         "email": user.email,
         "phone": user.phone,
-        "profile_pic": user.profile_pic,
+        #"profile_pic": user.profile_pic,
+        "profile_pic": f"data:image/jpeg;base64,{user.profile_pic}" if user.profile_pic else None,
         "username": user.username,
         "fullname": love_info.fullname if love_info else None,
         "nickname": love_info.nickname if love_info else None,
