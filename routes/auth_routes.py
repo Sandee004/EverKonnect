@@ -1,7 +1,7 @@
 from core.imports import (
     request, jsonify, Message,
     create_access_token, JWTManager, get_jwt_identity, jwt_required, render_template,
-    datetime, timedelta, random, Client, Blueprint, base64, io, np, Image, cv2, redirect, string, url_for, os, load_dotenv, imghdr
+    datetime, timedelta, random, Client, Blueprint, base64, io, np, Image, cv2, redirect, string, url_for, os, load_dotenv, filetype
 )
 from flask import Flask
 from core.config import Config
@@ -490,12 +490,12 @@ def get_user_profile():
     if user.profile_pic:
         try:
             image_bytes = base64.b64decode(user.profile_pic)
-            image_format = imghdr.what(None, image_bytes)
+            kind = filetype.guess(image_bytes)
+            image_format = kind.extension if kind else None
         except Exception:
             image_format = None
 
     mime_type = f"image/{image_format}" if image_format in ['jpeg', 'png'] else "image/jpeg"
-
     user_data = {
         "id": user.id,
         "email": user.email,

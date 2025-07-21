@@ -16,7 +16,7 @@ from flask_bcrypt import Bcrypt
 import threading
 import time
 from dotenv import load_dotenv
-import imghdr
+import filetype
 import threading
 import base64
 import io
