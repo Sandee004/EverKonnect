@@ -1,7 +1,7 @@
 from core.imports import (
     request, jsonify, Message,
     create_access_token, JWTManager, get_jwt_identity, jwt_required, render_template,
-    datetime, timedelta, random, Client, Blueprint, base64, io, np, Image, cv2, redirect, string, url_for, os, load_dotenv
+    datetime, timedelta, random, Client, Blueprint, base64, io, np, Image, cv2, redirect, string, url_for, os, load_dotenv, imghdr
 )
 from flask import Flask
 from core.config import Config
@@ -486,12 +486,22 @@ def get_user_profile():
     # LoveBasicInfo is related as `user.love_basic_info` (because of uselist=False)
     love_info = user.love_basic_info
 
+    image_format = None
+    if user.profile_pic:
+        try:
+            image_bytes = base64.b64decode(user.profile_pic)
+            image_format = imghdr.what(None, image_bytes)
+        except Exception:
+            image_format = None
+
+    mime_type = f"image/{image_format}" if image_format in ['jpeg', 'png'] else "image/jpeg"
+
     user_data = {
         "id": user.id,
         "email": user.email,
         "phone": user.phone,
-        #"profile_pic": user.profile_pic,
-        "profile_pic": f"data:image/jpeg;base64,{user.profile_pic}" if user.profile_pic else None,
+        #"profile_pic": f"data:image/jpeg;base64,{user.profile_pic}" if user.profile_pic else None,
+        "profile_pic": f"data:{mime_type};base64,{user.profile_pic}" if user.profile_pic else None,
         "username": user.username,
         "fullname": love_info.fullname if love_info else None,
         "nickname": love_info.nickname if love_info else None,
