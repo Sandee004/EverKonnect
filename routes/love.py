@@ -85,58 +85,59 @@ responses:
     """
     # Get user ID from JWT token
     current_user_id = get_jwt_identity()
-    
     data = request.json
 
-    # Find the current user
     user = User.query.get(current_user_id)
     if not user:
         return jsonify({"message": "User not found"}), 404
 
-    # Get the fields
-    nickname = data.get('nickname')
-    fullname = data.get('fullname')
-    dateOfBirth = data.get('dateOfBirth')
-    ageRange = data.get('ageRange')
-    maritalStatus = data.get('maritalStatus')
-    countryOfOrigin = data.get('countryOfOrigin')
-    tribe = data.get('tribe')
-    currentLocation = data.get('currentLocation')
-    skinTone = data.get('skinTone')
-
-    required_fields = ["nickname", "fullname", "dateOfBirth", "ageRange", "maritalStatus", "countryOfOrigin", "tribe", "currentLocation", "skinTone"]
+    required_fields = [
+        "nickname", "fullname", "dateOfBirth", "ageRange", 
+        "maritalStatus", "countryOfOrigin", "tribe", 
+        "currentLocation", "skinTone"
+    ]
     if not all(data.get(field) for field in required_fields):
         return jsonify({"message": "Fill all fields"}), 400
 
-    dob = None
     try:
-        dob = datetime.strptime(dateOfBirth, "%Y-%m-%d").date()
+        dob = datetime.strptime(data["dateOfBirth"], "%Y-%m-%d").date()
     except (ValueError, TypeError):
         return jsonify({"message": "dateOfBirth must be in YYYY-MM-DD format"}), 400
 
-    love_basic_info = user.love_basic_info
-    if not love_basic_info:
+    # Check if LoveBasicInfo already exists
+    love_basic_info = LoveBasicInfo.query.filter_by(user_id=current_user_id).first()
+
+    if love_basic_info:
+        # Update existing record
+        love_basic_info.nickname = data["nickname"]
+        love_basic_info.fullname = data["fullname"]
+        love_basic_info.date_of_birth = dob
+        love_basic_info.age_range = data["ageRange"]
+        love_basic_info.marital_status = data["maritalStatus"]
+        love_basic_info.country_of_origin = data["countryOfOrigin"]
+        love_basic_info.tribe = data["tribe"]
+        love_basic_info.current_location = data["currentLocation"]
+        love_basic_info.skin_tone = data["skinTone"]
+        message = "User info updated successfully"
+    else:
+        # Create new record
         love_basic_info = LoveBasicInfo(
-            user_id=user.id
+            user_id=current_user_id,
+            nickname=data["nickname"],
+            fullname=data["fullname"],
+            date_of_birth=dob,
+            age_range=data["ageRange"],
+            marital_status=data["maritalStatus"],
+            country_of_origin=data["countryOfOrigin"],
+            tribe=data["tribe"],
+            current_location=data["currentLocation"],
+            skin_tone=data["skinTone"]
         )
-
-    # Fill the fields
-    love_basic_info.nickname = nickname
-    love_basic_info.fullname = fullname
-    love_basic_info.date_of_birth = dob
-    love_basic_info.age_range = ageRange
-    love_basic_info.marital_status = maritalStatus
-    love_basic_info.country_of_origin = countryOfOrigin
-    love_basic_info.tribe = tribe
-    love_basic_info.current_location = currentLocation
-    love_basic_info.skin_tone = skinTone
-
-    # Add if new record
-    if not user.love_basic_info:
         db.session.add(love_basic_info)
+        message = "User info saved successfully"
 
     db.session.commit()
-    return jsonify({"message": "User info updated successfully"}), 200
+    return jsonify({"message": message}), 200
 
 
 @love_bp.route("/api/love/account_type", methods=["POST"])
