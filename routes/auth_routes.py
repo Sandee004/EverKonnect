@@ -494,6 +494,8 @@ def get_user_profile():
             image_format = kind.extension if kind else None
         except Exception:
             image_format = None
+    
+    print("Base64 picture", user.profile_pic)
 
     mime_type = f"image/{image_format}" if image_format in ['jpeg', 'png'] else "image/jpeg"
     user_data = {
@@ -516,6 +518,46 @@ def get_user_profile():
 
     return jsonify(user_data), 200
 
+
+@auth_bp.route('/api/request-password-reset', methods=['POST'])
+def request_password_reset():
+    email = request.json.get('email')
+
+    if not email:
+        return jsonify({"error": "Email is required"}), 400
+
+    user = User.query.filter_by(email=email).first()
+    if not user:
+        return jsonify({"error": "No account with this email"}), 404
+
+    reset_token = create_access_token(identity=user.id, expires_delta=timedelta(minutes=15))
+    reset_link = f"https://everkonnect.onrender.com/reset-password?token={reset_token}"
+
+    send_email(
+        to=email,
+        subject="Reset your password",
+        body=f"Click the link to reset your password: {reset_link}"
+    )
+
+    return jsonify({"message": "Password reset link sent"}), 200
+
+
+@auth_bp.route('/api/reset-password', methods=['POST'])
+@jwt_required()
+def reset_password():
+    user_id = get_jwt_identity()
+    user = User.query.get(user_id)
+
+    if not user:
+        return jsonify({"error": "User not found"}), 404
+
+    new_password = request.json.get('password')
+    password_hash = bcrypt.generate_password_hash(new_password).decode('utf-8')
+
+    user.password = password_hash
+    db.session.commit()
+
+    return jsonify({"message": "Password has been reset successfully"}), 200
 
 
 
