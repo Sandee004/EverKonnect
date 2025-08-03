@@ -1,7 +1,7 @@
 from core.imports import (
     request, jsonify, Message,
     JWTManager, get_jwt_identity, jwt_required,
-    datetime, timedelta, Blueprint, redirect, load_dotenv
+    datetime, timedelta, Blueprint, redirect, load_dotenv, filetype, base64
 )
 from core.config import Config
 import cloudinary.uploader
@@ -361,6 +361,71 @@ def get_users_with_business():
                 }
             }
         )
+
+    return jsonify(result), 200
+
+
+@business_bp.route('/messages/contacts', methods=['GET'])
+@jwt_required()
+def get_message_contacts():
+    """
+    Get list of users the current user has messaged with
+    ---
+    tags:
+      - Messages
+    security:
+      - Bearer: []
+    responses:
+      200:
+        description: List of users the authenticated user has interacted with via messages
+        schema:
+          type: array
+          items:
+            type: object
+            properties:
+              id:
+                type: integer
+                example: 456
+              username:
+                type: string
+                example: "jane_doe"
+              email:
+                type: string
+                example: "jane@example.com"
+              profile_pic:
+                type: string
+                example: "data:image/jpeg;base64,/9j/4AAQSkZJRgABAQEASABIAAD..."
+      401:
+        description: Unauthorized - Missing or invalid JWT
+    """
+    current_user_id = get_jwt_identity()
+
+    # Get all distinct user IDs the current user has had message interaction with
+    sent_ids = db.session.query(Message.receiver_id).filter_by(sender_id=current_user_id)
+    received_ids = db.session.query(Message.sender_id).filter_by(receiver_id=current_user_id)
+
+    contact_ids = {row[0] for row in sent_ids.union(received_ids).distinct().all()}
+
+    contacts = User.query.filter(User.id.in_(contact_ids)).all()
+
+    result = []
+    for user in contacts:
+        profile_pic_data = None
+        if user.profile_pic:
+            try:
+                image_bytes = base64.b64decode(user.profile_pic)
+                kind = filetype.guess(image_bytes)
+                extension = kind.extension if kind else "jpeg"
+                profile_pic_data = f"data:image/{extension};base64,{user.profile_pic}"
+            except Exception:
+                profile_pic_data = None
+
+        result.append({
+            "id": user.id,
+            "username": user.username,
+            "email": user.email,
+            "profile_pic": profile_pic_data
+        })
 
     return jsonify(result), 200
 
