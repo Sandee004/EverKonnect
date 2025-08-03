@@ -503,7 +503,7 @@ def get_user_profile():
         "email": user.email,
         "phone": user.phone,
         #"profile_pic": f"data:image/jpeg;base64,{user.profile_pic}" if user.profile_pic else None,
-        "profile_pic": f"data:{mime_type};base64,{user.profile_pic}",
+        "profile_pic": f"data:{mime_type};base64,{user.profile_pic}" if user.profile_pic else None,
         "username": user.username,
         "fullname": love_info.fullname if love_info else None,
         "nickname": love_info.nickname if love_info else None,
