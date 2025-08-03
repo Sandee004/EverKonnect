@@ -448,7 +448,7 @@ responses:
 @jwt_required()
 def update_personality():
     """
-    Update User Personality
+    Update User Personality (partial update supported)
     ---
     tags:
       - Love
@@ -467,38 +467,22 @@ def update_personality():
         required: true
         schema:
           type: object
-          required:
-            - height
-            - eye_colour
-            - body_type
-            - hair_colour
-            - hair_style
-            - interest
-            - hobbies
-            - music
-            - movies
-            - activities
-            - personality
-            - religion
-            - education
-            - languages
-            - values
           properties:
             height:
               type: string
               example: "5'9"
             eye_colour:
               type: string
-              example: Brown
+              example: "Brown"
             body_type:
               type: string
-              example: Athletic
+              example: "Athletic"
             hair_colour:
               type: string
-              example: Black
+              example: "Black"
             hair_style:
               type: string
-              example: Curly
+              example: "Curly"
             interest:
               type: string
               example: "Technology, Arts"
@@ -519,7 +503,7 @@ def update_personality():
               example: "Extrovert"
             religion:
               type: string
-              example: Christian
+              example: "Christian"
             education:
               type: string
               example: "Bachelor's Degree"
@@ -531,26 +515,39 @@ def update_personality():
               example: "Honesty, Integrity"
     responses:
       200:
-        description: Personality updated successfully
+        description: Personality updated successfully or no changes made
+        schema:
+          type: object
+          properties:
+            message:
+              type: string
+              example: "Personality updated successfully"
       400:
-        description: Bad request (missing fields)
+        description: Invalid or missing JSON body
+        schema:
+          type: object
+          properties:
+            message:
+              type: string
+              example: "Request body must be JSON"
       404:
         description: User not found or personality not set
+        schema:
+          type: object
+          properties:
+            message:
+              type: string
+              example: "User not found"
     """
     current_user_id = get_jwt_identity()
-    data = request.json
+    data = request.get_json()
+
+    if data is None:
+        return jsonify({"message": "Request body must be JSON"}), 400
 
     user = User.query.get(current_user_id)
     if not user:
         return jsonify({"message": "User not found"}), 404
-
-    required_fields = [
-        "height", "eye_colour", "body_type", "hair_colour", "hair_style", 
-        "interest", "hobbies", "music", "movies", "activities", 
-        "personality", "religion", "education", "languages", "values"
-    ]
-    if not all(data.get(field) for field in required_fields):
-        return jsonify({"message": "Fill all fields"}), 400
 
     existing_personality = UserPersonality.query.filter_by(user_id=current_user_id).first()
     if not existing_personality:
@@ -558,11 +555,17 @@ def update_personality():
             "message": "No personality found. Please set it first."
         }), 404
 
-    for field in required_fields:
-        setattr(existing_personality, field, data.get(field))
+    updated = False
+    for field, value in data.items():
+        if hasattr(existing_personality, field):
+            setattr(existing_personality, field, value)
+            updated = True
 
-    db.session.commit()
-    return jsonify({"message": "Personality updated successfully"}), 200
+    if updated:
+        db.session.commit()
+        return jsonify({"message": "Personality updated successfully"}), 200
+    else:
+        return jsonify({"message": "No changes were made"}), 200
 
 
 @love_bp.route("/api/love/match_preferences", methods=["POST"])
@@ -719,7 +722,7 @@ def set_match_preferences():
 @jwt_required()
 def update_match_preferences():
     """
-    Update User Match Preferences
+    Update User Match Preferences (partial update supported)
     ---
     tags:
       - Love
@@ -738,28 +741,6 @@ def update_match_preferences():
         required: true
         schema:
           type: object
-          required:
-            - age_range
-            - marital_status
-            - country_of_origin
-            - tribe
-            - current_location
-            - skin_tone
-            - height
-            - eye_colour
-            - body_type
-            - hair_colour
-            - hair_style
-            - religion
-            - education
-            - languages
-            - values
-            - interest
-            - hobbies
-            - music
-            - movies
-            - activities
-            - personality
           properties:
             age_range:
               type: string
@@ -826,34 +807,52 @@ def update_match_preferences():
               example: "Introvert"
     responses:
       200:
-        description: Match preferences updated successfully
+        description: Match preferences updated successfully or no changes made
+        schema:
+          type: object
+          properties:
+            message:
+              type: string
+              example: "Match preferences updated successfully"
       400:
-        description: Bad request (missing fields)
+        description: Invalid or missing JSON body
+        schema:
+          type: object
+          properties:
+            message:
+              type: string
+              example: "Request body must be JSON"
       404:
-        description: No preferences found or user not found
+        description: User or preferences not found
+        schema:
+          type: object
+          properties:
+            message:
+              type: string
+              example: "User not found"
     """
     current_user_id = get_jwt_identity()
-    data = request.json
+    data = request.get_json()
+
+    if data is None:
+        return jsonify({"message": "Request body must be JSON"}), 400
 
     user = User.query.get(current_user_id)
     if not user:
         return jsonify({"message": "User not found"}), 404
 
-    required_fields = [
-        "age_range", "marital_status", "country_of_origin", "tribe", "current_location",
-        "skin_tone", "height", "eye_colour", "body_type", "hair_colour", "hair_style",
-        "religion", "education", "languages", "values", "interest", "hobbies", "music",
-        "movies", "activities", "personality"
-    ]
-    if not all(data.get(field) for field in required_fields):
-        return jsonify({"message": "Fill all fields"}), 400
-
     existing_pref = MatchPreference.query.filter_by(user_id=current_user_id).first()
     if not existing_pref:
         return jsonify({"message": "No match preferences found. Please set them first."}), 404
 
-    for field in required_fields:
-        setattr(existing_pref, field, data.get(field))
+    updated = False
+    for field, value in data.items():
+        if hasattr(existing_pref, field):
+            setattr(existing_pref, field, value)
+            updated = True
 
-    db.session.commit()
-    return jsonify({"message": "Match preferences updated successfully"}), 200
+    if updated:
+        db.session.commit()
+        return jsonify({"message": "Match preferences updated successfully"}), 200
+    else:
+        return jsonify({"message": "No changes were made"}), 200
