@@ -495,7 +495,7 @@ def get_user_profile():
         except Exception:
             image_format = None
     
-    print("Base64 picture", user.profile_pic)
+    print("Base64 picture set here")
 
     mime_type = f"image/{image_format}" if image_format in ['jpeg', 'png'] else "image/jpeg"
     user_data = {
@@ -503,7 +503,7 @@ def get_user_profile():
         "email": user.email,
         "phone": user.phone,
         #"profile_pic": f"data:image/jpeg;base64,{user.profile_pic}" if user.profile_pic else None,
-        "profile_pic": f"data:{mime_type};base64,{user.profile_pic}" if user.profile_pic else None,
+        "profile_pic": f"data:{mime_type};base64,{user.profile_pic}",
         "username": user.username,
         "fullname": love_info.fullname if love_info else None,
         "nickname": love_info.nickname if love_info else None,
@@ -515,7 +515,7 @@ def get_user_profile():
         "current_location": love_info.current_location if love_info else None,
         "skin_tone": love_info.skin_tone if love_info else None,
     }
-
+    print("Sent data")
     return jsonify(user_data), 200
 
 
