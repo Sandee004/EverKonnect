@@ -521,6 +521,51 @@ def get_user_profile():
 
 @auth_bp.route('/api/request-password-reset', methods=['POST'])
 def request_password_reset():
+    """
+Request a password reset link via email
+---
+tags:
+  - Authentication
+parameters:
+  - name: body
+    in: body
+    required: true
+    schema:
+      type: object
+      required:
+        - email
+      properties:
+        email:
+          type: string
+          format: email
+          example: "user@example.com"
+responses:
+  200:
+    description: Password reset link sent successfully
+    schema:
+      type: object
+      properties:
+        message:
+          type: string
+          example: "Password reset link sent"
+  400:
+    description: Email not provided
+    schema:
+      type: object
+      properties:
+        error:
+          type: string
+          example: "Email is required"
+  404:
+    description: Email not found in database
+    schema:
+      type: object
+      properties:
+        error:
+          type: string
+          example: "No account with this email"
+    """
+
     email = request.json.get('email')
 
     if not email:
@@ -545,6 +590,50 @@ def request_password_reset():
 @auth_bp.route('/api/reset-password', methods=['POST'])
 @jwt_required()
 def reset_password():
+    """
+Reset password using reset token
+---
+tags:
+  - Authentication
+security:
+  - Bearer: []
+parameters:
+  - name: Authorization
+    in: header
+    description: JWT reset token (from email link)
+    required: true
+    type: string
+    example: "Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6..."
+  - name: body
+    in: body
+    required: true
+    schema:
+      type: object
+      required:
+        - password
+      properties:
+        password:
+          type: string
+          format: password
+          example: "NewSecureP@ssword123"
+responses:
+  200:
+    description: Password successfully reset
+    schema:
+      type: object
+      properties:
+        message:
+          type: string
+          example: "Password has been reset successfully"
+  404:
+    description: User not found
+    schema:
+      type: object
+      properties:
+        error:
+          type: string
+          example: "User not found"
+    """
     user_id = get_jwt_identity()
     user = User.query.get(user_id)
 
