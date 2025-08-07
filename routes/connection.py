@@ -5,7 +5,7 @@ from core.imports import (
 )
 from core.config import Config
 from core.extensions import db
-from core.models import User, Connection
+from core.models import User, Message, Connection
 
 connection_bp = Blueprint('connection', __name__)
 load_dotenv()
