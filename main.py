@@ -48,22 +48,17 @@ def model_to_dict(model):
 
 def calculate_match_score(preferences, user, personality):
     score = 0
-    basic_info = user.love_basic_info
 
-    if not basic_info:
-        return 0
-
-    if preferences.age_range and preferences.age_range == basic_info.age_range:
+    # 1. Exact matches for simple fields
+    if preferences.age_range and preferences.age_range == user.love_basic_info.age_range:
         score += 5
-    if preferences.marital_status and preferences.marital_status == basic_info.marital_status:
+    if preferences.marital_status and preferences.marital_status == user.love_basic_info.marital_status:
         score += 5
-    if preferences.country_of_origin and preferences.country_of_origin == basic_info.country_of_origin:
+    if preferences.country_of_origin and preferences.country_of_origin == user.love_basic_info.country_of_origin:
         score += 5
-    if preferences.tribe and preferences.tribe == basic_info.tribe:
+    if preferences.tribe and preferences.tribe == user.love_basic_info.tribe:
         score += 5
-    if preferences.skin_tone and preferences.skin_tone == basic_info.skin_tone:
-        score += 5
-    if preferences.hair_style and preferences.hair_style == basic_info.hair_style:
+    if preferences.skin_tone and preferences.skin_tone == user.love_basic_info.skin_tone:
         score += 5
 
     if preferences.height and preferences.height == personality.height:
@@ -74,6 +69,8 @@ def calculate_match_score(preferences, user, personality):
         score += 5
     if preferences.hair_colour and preferences.hair_colour == personality.hair_colour:
         score += 5
+    if preferences.hair_style and preferences.hair_style == personality.hair_style:
+        score += 5
     if preferences.religion and preferences.religion == personality.religion:
         score += 5
     if preferences.education and preferences.education == personality.education:
@@ -81,19 +78,19 @@ def calculate_match_score(preferences, user, personality):
     if preferences.languages and preferences.languages == personality.languages:
         score += 5
 
-    # 3. Multi-value matches as lists
+    # 2. Multi-value list fields
     def overlap_score(pref_string, user_string, weight):
         """Compare comma-separated lists and return partial weight based on overlap"""
         if not pref_string or not user_string:
             return 0
-        pref_set = set([s.strip().lower() for s in pref_string.split(',') if s.strip()])
-        user_set = set([s.strip().lower() for s in user_string.split(',') if s.strip()])
+        pref_set = {s.strip().lower() for s in pref_string.split(',') if s.strip()}
+        user_set = {s.strip().lower() for s in user_string.split(',') if s.strip()}
         overlap = pref_set & user_set
         if not pref_set:
             return 0
         return (len(overlap) / len(pref_set)) * weight
 
-    # Interests, hobbies, movies, music, activities, values, personality
+    # Compare interests, hobbies, etc.
     score += overlap_score(preferences.interest, personality.interest, 5)
     score += overlap_score(preferences.hobbies, personality.hobbies, 5)
     score += overlap_score(preferences.movies, personality.movies, 5)
@@ -102,7 +99,7 @@ def calculate_match_score(preferences, user, personality):
     score += overlap_score(preferences.values, personality.values, 5)
     score += overlap_score(preferences.personality, personality.personality, 5)
 
-    return score  # Total up to 100
+    return score  # Total max: 100
 
 
 @app.route('/matches', methods=['GET'])
@@ -112,11 +109,7 @@ def get_matches():
     Get matches for the current logged-in user.
 
     This endpoint returns a list of potential matches for the current user
-    based on their saved match preferences. It compares personal attributes 
-    (e.g., age range, height, values, interests) with those of other users 
-    and calculates a match score.
-
-    A match is returned if its score is 85 or higher.
+    based on their saved preferences.
 
     ---
     tags:
@@ -133,7 +126,7 @@ def get_matches():
           example: "Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6..."
     responses:
       200:
-        description: A list of users who match the current user's preferences
+        description: A list of matches
         content:
           application/json:
             schema:
@@ -148,29 +141,12 @@ def get_matches():
                     type: string
                     example: "JohnDoe"
                   score:
-                    type: number
-                    format: float
-                    example: 90.0
+                    type: integer
+                    example: 90
       400:
         description: Preferences not set
-        content:
-          application/json:
-            schema:
-              type: object
-              properties:
-                message:
-                  type: string
-                  example: "Preferences not set"
       404:
         description: User not found
-        content:
-          application/json:
-            schema:
-              type: object
-              properties:
-                message:
-                  type: string
-                  example: "User not found"
     """
     current_user_id = get_jwt_identity()
 
@@ -189,25 +165,23 @@ def get_matches():
 
     matches = []
     for candidate in candidates:
-        if not candidate.love_basic_info:
+        if not candidate.love_basic_info or not candidate.personality:
             continue
 
-        personality = candidate.personality
-        if not personality:
-            continue
-
-        score = calculate_match_score(preferences, candidate, personality)
+        score = calculate_match_score(preferences, candidate, candidate.personality)
 
         if score >= 85:
             matches.append({
                 "user_id": candidate.id,
                 "nickname": candidate.love_basic_info.nickname,
-                "score": round(score, 2)
+                "score": int(score)
             })
 
     matches.sort(key=lambda m: m['score'], reverse=True)
 
     return jsonify(matches), 200
+
+
 
 @app.route('/api/referral', methods=['GET'])
 @jwt_required()
