@@ -48,18 +48,24 @@ def model_to_dict(model):
 
 def calculate_match_score(preferences, user, personality):
     score = 0
-    
-    # 1. Exact matches for simple fields
-    if preferences.age_range and preferences.age_range == user.age_range:
+    basic_info = user.love_basic_info
+
+    if not basic_info:
+        return 0
+
+    if preferences.age_range and preferences.age_range == basic_info.age_range:
         score += 5
-    if preferences.marital_status and preferences.marital_status == user.marital_status:
+    if preferences.marital_status and preferences.marital_status == basic_info.marital_status:
         score += 5
-    if preferences.country_of_origin and preferences.country_of_origin == user.country_of_origin:
+    if preferences.country_of_origin and preferences.country_of_origin == basic_info.country_of_origin:
         score += 5
-    if preferences.tribe and preferences.tribe == user.tribe:
+    if preferences.tribe and preferences.tribe == basic_info.tribe:
         score += 5
-    if preferences.skin_tone and preferences.skin_tone == user.skin_tone:
+    if preferences.skin_tone and preferences.skin_tone == basic_info.skin_tone:
         score += 5
+    if preferences.hair_style and preferences.hair_style == basic_info.hair_style:
+        score += 5
+
     if preferences.height and preferences.height == personality.height:
         score += 5
     if preferences.eye_colour and preferences.eye_colour == personality.eye_colour:
@@ -67,8 +73,6 @@ def calculate_match_score(preferences, user, personality):
     if preferences.body_type and preferences.body_type == personality.body_type:
         score += 5
     if preferences.hair_colour and preferences.hair_colour == personality.hair_colour:
-        score += 5
-    if preferences.hair_style and preferences.hair_style == user.hair_style:
         score += 5
     if preferences.religion and preferences.religion == personality.religion:
         score += 5
@@ -108,7 +112,11 @@ def get_matches():
     Get matches for the current logged-in user.
 
     This endpoint returns a list of potential matches for the current user
-    based on their saved preferences.
+    based on their saved match preferences. It compares personal attributes 
+    (e.g., age range, height, values, interests) with those of other users 
+    and calculates a match score.
+
+    A match is returned if its score is 85 or higher.
 
     ---
     tags:
@@ -125,7 +133,7 @@ def get_matches():
           example: "Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6..."
     responses:
       200:
-        description: A list of matches
+        description: A list of users who match the current user's preferences
         content:
           application/json:
             schema:
@@ -140,26 +148,40 @@ def get_matches():
                     type: string
                     example: "JohnDoe"
                   score:
-                    type: integer
-                    example: 90
+                    type: number
+                    format: float
+                    example: 90.0
       400:
         description: Preferences not set
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                message:
+                  type: string
+                  example: "Preferences not set"
       404:
         description: User not found
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                message:
+                  type: string
+                  example: "User not found"
     """
     current_user_id = get_jwt_identity()
 
-    # Fetch current user and their preferences
     user = User.query.get(current_user_id)
     if not user:
         return jsonify({"message": "User not found"}), 404
-    
-    # Get this user's preferences
+
     preferences = MatchPreference.query.filter_by(user_id=current_user_id).first()
     if not preferences:
         return jsonify({"message": "Preferences not set"}), 400
 
-    # Get all other candidates
     candidates = User.query.filter(
         User.id != current_user_id,
         User.account_type == user.account_type
@@ -167,27 +189,25 @@ def get_matches():
 
     matches = []
     for candidate in candidates:
-        personality = UserPersonality.query.filter_by(user_id=candidate.id).first()
+        if not candidate.love_basic_info:
+            continue
+
+        personality = candidate.personality
         if not personality:
             continue
 
-        # Compute score
         score = calculate_match_score(preferences, candidate, personality)
 
         if score >= 85:
-            matches.append(
-                {
-                    "user_id": candidate.id,
-                    "nickname": candidate.nickname,
-                    "score": score
-                }
-            )
+            matches.append({
+                "user_id": candidate.id,
+                "nickname": candidate.love_basic_info.nickname,
+                "score": round(score, 2)
+            })
 
-    # Sort matches by score descending
     matches.sort(key=lambda m: m['score'], reverse=True)
 
     return jsonify(matches), 200
-
 
 @app.route('/api/referral', methods=['GET'])
 @jwt_required()
