@@ -143,14 +143,17 @@ def get_matches():
                   score:
                     type: integer
                     example: 90
+                  profile_pic:
+                    type: string
+                    example: "data:image/jpeg;base64,..."
       400:
         description: Preferences not set
       404:
         description: User not found
     """
     current_user_id = get_jwt_identity()
-
     user = User.query.get(current_user_id)
+
     if not user:
         return jsonify({"message": "User not found"}), 404
 
@@ -169,13 +172,27 @@ def get_matches():
             continue
 
         score = calculate_match_score(preferences, candidate, candidate.personality)
+        if score < 85:
+            continue
 
-        if score >= 85:
-            matches.append({
-                "user_id": candidate.id,
-                "nickname": candidate.love_basic_info.nickname,
-                "score": int(score)
-            })
+        # Prepare profile picture
+        profile_pic_data = None
+        if candidate.profile_pic:
+            try:
+                image_bytes = base64.b64decode(candidate.profile_pic)
+                kind = filetype.guess(image_bytes)
+                extension = kind.extension if kind else "jpeg"
+                mime_type = f"image/{extension}" if extension in ['jpeg', 'png'] else "image/jpeg"
+                profile_pic_data = f"data:{mime_type};base64,{candidate.profile_pic}"
+            except Exception:
+                profile_pic_data = None
+
+        matches.append({
+            "user_id": candidate.id,
+            "nickname": candidate.love_basic_info.nickname,
+            "score": int(score),
+            "profile_pic": profile_pic_data
+        })
 
     matches.sort(key=lambda m: m['score'], reverse=True)
 
