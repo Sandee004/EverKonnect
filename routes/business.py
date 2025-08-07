@@ -6,7 +6,7 @@ from core.imports import (
 from core.config import Config
 import cloudinary.uploader
 from core.extensions import db
-from core.models import User, BusinessBasicInfo, BusinessCredentials, SavedPhoto
+from core.models import User, BusinessBasicInfo, BusinessCredentials, SavedPhoto, Message
 
 
 business_bp = Blueprint('business', __name__)
