@@ -115,7 +115,7 @@ responses:
         'id': p.id,
         'title': p.title,
         'content': p.content,
-        'author': p.user.username,
+        'author': p.author.username,
         'timestamp': p.timestamp.isoformat(),
         'likes': len(p.likes)
     } for p in posts]
