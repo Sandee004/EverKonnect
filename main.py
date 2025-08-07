@@ -3,7 +3,7 @@ from core.imports import (
     Flask, request, jsonify,
     create_access_token, JWTManager, get_jwt_identity, jwt_required,
     Swagger, load_dotenv, threading,
-    datetime, timedelta, date
+    datetime, timedelta, date, filetype
 )
 from core.config import Config
 from core.extensions import db, jwt, mail, swagger, cors, bcrypt, oauth
@@ -181,6 +181,118 @@ def get_matches():
 
     return jsonify(matches), 200
 
+
+@app.route('/match/account/<int:user_id>', methods=['GET'])
+@jwt_required()
+def get_match_account(user_id):
+    """
+    Get full profile details for a selected match by user ID.
+
+    ---
+    tags:
+      - Matches
+    security:
+      - Bearer: []
+    parameters:
+      - name: user_id
+        in: path
+        description: ID of the user to retrieve
+        required: true
+        schema:
+          type: integer
+    responses:
+      200:
+        description: Full profile of the selected match
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                user_id:
+                  type: integer
+                email:
+                  type: string
+                phone:
+                  type: string
+                profile_pic:
+                  type: string
+                nickname:
+                  type: string
+                fullname:
+                  type: string
+                date_of_birth:
+                  type: string
+                age_range:
+                  type: string
+                marital_status:
+                  type: string
+                country_of_origin:
+                  type: string
+                tribe:
+                  type: string
+                current_location:
+                  type: string
+                skin_tone:
+                  type: string
+                personality:
+                  type: object
+      404:
+        description: User not found
+    """
+    user = User.query.get(user_id)
+
+    if not user:
+        return jsonify({"error": "User not found"}), 404
+
+    love_info = user.love_basic_info
+    personality = user.personality
+
+    # Process profile picture
+    profile_pic_data = None
+    if user.profile_pic:
+        try:
+            image_bytes = base64.b64decode(user.profile_pic)
+            kind = filetype.guess(image_bytes)
+            extension = kind.extension if kind else "jpeg"
+            mime_type = f"image/{extension}" if extension in ["jpeg", "png"] else "image/jpeg"
+            profile_pic_data = f"data:{mime_type};base64,{user.profile_pic}"
+        except Exception:
+            profile_pic_data = None
+
+    user_data = {
+        "user_id": user.id,
+        "email": user.email,
+        "phone": user.phone,
+        "profile_pic": profile_pic_data,
+        "nickname": love_info.nickname if love_info else None,
+        "fullname": love_info.fullname if love_info else None,
+        "date_of_birth": love_info.date_of_birth.isoformat() if love_info and love_info.date_of_birth else None,
+        "age_range": love_info.age_range if love_info else None,
+        "marital_status": love_info.marital_status if love_info else None,
+        "country_of_origin": love_info.country_of_origin if love_info else None,
+        "tribe": love_info.tribe if love_info else None,
+        "current_location": love_info.current_location if love_info else None,
+        "skin_tone": love_info.skin_tone if love_info else None,
+        "personality": {
+            "height": personality.height if personality else None,
+            "eye_colour": personality.eye_colour if personality else None,
+            "body_type": personality.body_type if personality else None,
+            "hair_colour": personality.hair_colour if personality else None,
+            "hair_style": personality.hair_style if personality else None,
+            "interest": personality.interest if personality else None,
+            "hobbies": personality.hobbies if personality else None,
+            "music": personality.music if personality else None,
+            "movies": personality.movies if personality else None,
+            "activities": personality.activities if personality else None,
+            "personality": personality.personality if personality else None,
+            "religion": personality.religion if personality else None,
+            "education": personality.education if personality else None,
+            "languages": personality.languages if personality else None,
+            "values": personality.values if personality else None
+        }
+    }
+
+    return jsonify(user_data), 200
 
 
 @app.route('/api/referral', methods=['GET'])
