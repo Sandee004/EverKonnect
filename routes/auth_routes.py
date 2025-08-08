@@ -522,51 +522,51 @@ def get_user_profile():
 @auth_bp.route('/api/request-password-reset', methods=['POST'])
 def request_password_reset():
     """
-Request a password reset link via email
----
-tags:
-  - Authentication
-parameters:
-  - name: body
-    in: body
-    required: true
-    schema:
-      type: object
-      required:
-        - email
-      properties:
-        email:
-          type: string
-          format: email
-          example: "user@example.com"
-responses:
-  200:
-    description: Password reset link sent successfully
-    schema:
-      type: object
-      properties:
-        message:
-          type: string
-          example: "Password reset link sent"
-  400:
-    description: Email not provided
-    schema:
-      type: object
-      properties:
-        error:
-          type: string
-          example: "Email is required"
-  404:
-    description: Email not found in database
-    schema:
-      type: object
-      properties:
-        error:
-          type: string
-          example: "No account with this email"
+    Request a password reset OTP via email
+    ---
+    tags:
+      - Authentication
+    parameters:
+      - name: body
+        in: body
+        required: true
+        schema:
+          type: object
+          required:
+            - email
+          properties:
+            email:
+              type: string
+              format: email
+              example: "user@example.com"
+    responses:
+      200:
+        description: OTP sent successfully
+        schema:
+          type: object
+          properties:
+            message:
+              type: string
+              example: "OTP sent to your email"
+      400:
+        description: Email not provided
+        schema:
+          type: object
+          properties:
+            error:
+              type: string
+              example: "Email is required"
+      404:
+        description: Email not found in database
+        schema:
+          type: object
+          properties:
+            error:
+              type: string
+              example: "No account with this email"
     """
-
-    email = request.json.get('email')
+    data = request.get_json()
+    email = data.get('email')
 
     if not email:
         return jsonify({"error": "Email is required"}), 400
@@ -575,79 +575,110 @@ responses:
     if not user:
         return jsonify({"error": "No account with this email"}), 404
 
-    reset_token = create_access_token(identity=user.id, expires_delta=timedelta(minutes=15))
-    reset_link = f"https://everkonnect.onrender.com/reset-password?token={reset_token}"
+    otp = str(random.randint(100000, 999999))
+    now = datetime.utcnow()
+
+    temp_user = TempUser.query.filter_by(email=email).first()
+    if not temp_user:
+        temp_user = TempUser(email=email)
+        db.session.add(temp_user)
+
+    temp_user.otp_code = otp
+    temp_user.otp_created_at = now
+    db.session.commit()
 
     send_email(
         to=email,
-        subject="Reset your password",
-        body=f"Click the link to reset your password: {reset_link}"
+        subject="Password Reset OTP",
+        body=f"Your OTP for password reset is {otp}. It expires in 10 minutes."
     )
 
-    return jsonify({"message": "Password reset link sent"}), 200
+    return jsonify({"message": "OTP sent to your email"}), 200
 
 
 @auth_bp.route('/api/reset-password', methods=['POST'])
-@jwt_required()
 def reset_password():
     """
-Reset password using reset token
----
-tags:
-  - Authentication
-security:
-  - Bearer: []
-parameters:
-  - name: Authorization
-    in: header
-    description: JWT reset token (from email link)
-    required: true
-    type: string
-    example: "Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6..."
-  - name: body
-    in: body
-    required: true
-    schema:
-      type: object
-      required:
-        - password
-      properties:
-        password:
-          type: string
-          format: password
-          example: "NewSecureP@ssword123"
-responses:
-  200:
-    description: Password successfully reset
-    schema:
-      type: object
-      properties:
-        message:
-          type: string
-          example: "Password has been reset successfully"
-  404:
-    description: User not found
-    schema:
-      type: object
-      properties:
-        error:
-          type: string
-          example: "User not found"
+    Reset password using OTP
+    ---
+    tags:
+      - Authentication
+    parameters:
+      - name: body
+        in: body
+        required: true
+        schema:
+          type: object
+          required:
+            - email
+            - otp
+            - new_password
+          properties:
+            email:
+              type: string
+              format: email
+              example: "user@example.com"
+            otp:
+              type: string
+              example: "123456"
+            new_password:
+              type: string
+              format: password
+              example: "NewSecureP@ssword123"
+    responses:
+      200:
+        description: Password successfully reset
+        schema:
+          type: object
+          properties:
+            message:
+              type: string
+              example: "Password reset successful"
+      400:
+        description: Invalid or expired OTP / Missing fields
+        schema:
+          type: object
+          properties:
+            error:
+              type: string
+              example: "Invalid OTP"
+      404:
+        description: User not found
+        schema:
+          type: object
+          properties:
+            error:
+              type: string
+              example: "User not found"
     """
-    user_id = get_jwt_identity()
-    user = User.query.get(user_id)
+    data = request.get_json()
+    email = data.get('email')
+    otp = data.get('otp')
+    new_password = data.get('new_password')
 
+    if not all([email, otp, new_password]):
+        return jsonify({"error": "Email, OTP, and new password are required"}), 400
+
+    temp_user = TempUser.query.filter_by(email=email, otp_code=otp).first()
+    if not temp_user:
+        return jsonify({"error": "Invalid OTP"}), 400
+
+    if datetime.utcnow() > temp_user.otp_created_at + timedelta(minutes=10):
+        return jsonify({"error": "OTP expired"}), 400
+
+    user = User.query.filter_by(email=email).first()
     if not user:
         return jsonify({"error": "User not found"}), 404
 
-    new_password = request.json.get('password')
-    password_hash = bcrypt.generate_password_hash(new_password).decode('utf-8')
-
-    user.password = password_hash
+    #user.password_hash = generate_password_hash(new_password)
+    user.password_hash = bcrypt.generate_password_hash(new_password).decode('utf-8')
     db.session.commit()
 
-    return jsonify({"message": "Password has been reset successfully"}), 200
+    db.session.delete(temp_user)
+    db.session.commit()
 
+    print("Password reset successful")
+    return jsonify({"message": "Password reset successful"}), 200
 
 
 linkedin = oauth.register(
