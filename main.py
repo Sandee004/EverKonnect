@@ -7,7 +7,7 @@ from core.imports import (
 )
 from core.config import Config
 from core.extensions import db, jwt, mail, swagger, cors, bcrypt, oauth
-from core.models import User, TempUser, UserPersonality, MatchPreference
+from core.models import User, TempUser, UserPersonality, MatchPreference, SavedPhoto
 from routes.auth_routes import auth_bp
 from routes.love import love_bp
 from routes.business import business_bp
@@ -278,6 +278,9 @@ def get_match_account(user_id):
         except Exception:
             profile_pic_data = None
 
+    saved_photos = SavedPhoto.query.filter_by(user_id=user_id).order_by(SavedPhoto.uploaded_at.desc()).all()
+    gallery_photos = [photo.photo_url for photo in saved_photos]
+
     user_data = {
         "user_id": user.id,
         "email": user.email,
@@ -308,8 +311,10 @@ def get_match_account(user_id):
             "education": personality.education if personality else None,
             "languages": personality.languages if personality else None,
             "values": personality.values if personality else None
-        }
+        },
+        "gallery_photos": gallery_photos
     }
+
 
     return jsonify(user_data), 200
 
