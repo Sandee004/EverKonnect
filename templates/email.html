@@ -2,7 +2,7 @@
 <html lang="en">
   <head>
     <meta charset="UTF-8" />
-    <title>Your Verification Code | EverKonnect</title>
+    <title>{{ purpose_title }} | EverKonnect</title>
     <style>
       body {
         background-color: #f3f4f6;
@@ -18,7 +18,7 @@
         overflow: hidden;
       }
       .header {
-        background-color: #1e3a8a; /* dark blue */
+        background-color: #1e3a8a;
         color: #ffffff;
         text-align: center;
         padding: 16px 0;
@@ -61,10 +61,7 @@
 
       <!-- Body -->
       <div class="body">
-        <p>
-          Welcome to EverKonnect! To complete your verification, please use the
-          code below:
-        </p>
+        <p>{{ message }}</p>
         <div class="otp-box">{{ otp }}</div>
         <p style="color: #6b7280; font-size: 14px">
           This code will expire shortly. Please do not share it with anyone.

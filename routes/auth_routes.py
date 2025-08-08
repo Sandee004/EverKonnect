@@ -17,6 +17,7 @@ def generate_referral_code(length=8):
     # Generate a random alphanumeric uppercase referral code
     return ''.join(random.choices(string.ascii_uppercase + string.digits, k=length))
 
+"""
 def send_email(to, subject, body):
     msg = Message(subject=subject, recipients=[to])
     msg.html = body
@@ -28,6 +29,38 @@ def send_email(to, subject, body):
 def send_otp_email(email, otp):
     subject = "Your Account Verification OTP"
     body = render_template('email.html', otp=otp, year=datetime.now().year)
+    send_email(email, subject, body)
+"""
+
+def send_email(to, subject, body):
+    msg = Message(subject=subject, recipients=[to])
+    msg.html = body
+    try:
+        mail.send(msg)
+    except Exception as e:
+        print(f"Error sending email: {e}")
+
+def send_otp_email(email, otp, purpose="verification"):
+    # Customize content based on purpose
+    if purpose == "verification":
+        subject = "Your Account Verification OTP"
+        message = "Welcome to EverKonnect! To complete your verification, please use the code below:"
+        purpose_title = "Your Verification Code"
+    elif purpose == "password_reset":
+        subject = "Your Password Reset OTP"
+        message = "We received a request to reset your password. Use the code below to proceed:"
+        purpose_title = "Password Reset Code"
+    else:
+        raise ValueError("Invalid OTP purpose.")
+
+    body = render_template(
+        'email.html',
+        otp=otp,
+        message=message,
+        purpose_title=purpose_title,
+        year=datetime.now().year
+    )
+
     send_email(email, subject, body)
 
 
