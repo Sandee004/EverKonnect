@@ -22,16 +22,11 @@ class Config:
     MAIL_DEFAULT_SENDER = os.getenv("USERNAME_FOR_EMAIL")
 
 
-    CLOUDINARY_CLOUD_NAME = "dnzm1uubf"
-    CLOUDINARY_API_KEY = os.getenv("CLOUDINARY_API_KEY")
-    CLOUDINARY_API_SECRET = os.getenv("CLOUDINARY_API_SECRET")
-
-    # Configure Cloudinary immediately
-    cloudinary.config(
-        cloud_name=CLOUDINARY_CLOUD_NAME,
-        api_key=CLOUDINARY_API_KEY,
-        api_secret=CLOUDINARY_API_SECRET,
-        secure=True
-    )
+cloudinary.config(
+    cloud_name=os.getenv("CLOUDINARY_CLOUD_NAME"),
+    api_key=os.getenv("CLOUDINARY_API_KEY"),
+    api_secret=os.getenv("CLOUDINARY_API_SECRET"),
+    secure=True
+)
 
     

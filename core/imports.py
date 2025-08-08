@@ -25,3 +25,5 @@ from PIL import Image
 import cv2
 import json
 from flask import Blueprint
+import re
+import cloudinary.uploader

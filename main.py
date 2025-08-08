@@ -13,6 +13,7 @@ from routes.love import love_bp
 from routes.business import business_bp
 from routes.connection import connection_bp
 from routes.blog import blog_bp
+from routes.gallery import gallery_bp
 
 def create_app():
     app = Flask(__name__)
@@ -31,6 +32,7 @@ def create_app():
     app.register_blueprint(business_bp)
     app.register_blueprint(connection_bp)
     app.register_blueprint(blog_bp)
+    app.register_blueprint(gallery_bp)
     return app
 
 app = create_app()
