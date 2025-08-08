@@ -205,7 +205,7 @@ def get_matches():
 @jwt_required()
 def get_match_account(user_id):
     """
-    Get full profile details for a selected match by user ID.
+    Get full profile details for a selected match by user ID, including profile picture and gallery photos.
 
     ---
     tags:
@@ -235,6 +235,12 @@ def get_match_account(user_id):
                   type: string
                 profile_pic:
                   type: string
+                  description: Base64-encoded profile picture (with MIME type prefix) or null
+                gallery_photos:
+                  type: array
+                  items:
+                    type: string
+                  description: List of Cloudinary image URLs from the user's gallery
                 nickname:
                   type: string
                 fullname:
@@ -255,6 +261,37 @@ def get_match_account(user_id):
                   type: string
                 personality:
                   type: object
+                  properties:
+                    height:
+                      type: string
+                    eye_colour:
+                      type: string
+                    body_type:
+                      type: string
+                    hair_colour:
+                      type: string
+                    hair_style:
+                      type: string
+                    interest:
+                      type: string
+                    hobbies:
+                      type: string
+                    music:
+                      type: string
+                    movies:
+                      type: string
+                    activities:
+                      type: string
+                    personality:
+                      type: string
+                    religion:
+                      type: string
+                    education:
+                      type: string
+                    languages:
+                      type: string
+                    values:
+                      type: string
       404:
         description: User not found
     """
