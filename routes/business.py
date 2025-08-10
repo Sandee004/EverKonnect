@@ -15,246 +15,369 @@ load_dotenv()
 
 @business_bp.route('/api/business/basic_info', methods=['POST'])
 @jwt_required()
-def business_registration():
+def create_business_basic_info():
     """
-User Business Info Registration
----
-tags:
-  - Business
-security:
-  - Bearer: []
-consumes:
-  - application/json
-parameters:
-  - name: Authorization
-    in: header
-    description: "JWT token as: Bearer <your_token>"
-    required: true
-    type: string
-    example: "Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6..."
-  - name: body
-    in: body
-    required: true
-    schema:
-      type: object
-      required:
-        - fullname
-        - home_address
-        - phone
-        - country
-        - state
-        - city
-        - language
-        - sex
-        - DoB
-        - businessName
-        - businessAddress
-      properties:
-        fullname:
-          type: string
-          example: John Doe
-        home_address:
-          type: string
-          example: 123 Main Street
-        phone:
-          type: string
-          example: "+1234567890"
-        country:
-          type: string
-          example: "USA"
-        state:
-          type: string
-          example: "California"
-        city:
-          type: string
-          example: "Los Angeles"
-        language:
-          type: string
-          example: "English"
-        sex:
-          type: string
-          example: "Male"
-        DoB:
-          type: string
-          format: date
-          example: "1990-01-01"
-        businessName:
-          type: string
-          example: "My Business"
-        businessAddress:
-          type: string
-          example: "456 Market Street"
-responses:
-  200:
-    description: User info updated successfully
-  400:
-    description: Bad request
-  404:
-    description: User not found
+    Create Business Basic Info
+    ---
+    tags:
+      - Business
+    security:
+      - Bearer: []
+    consumes:
+      - application/json
+    parameters:
+      - name: Authorization
+        in: header
+        description: "JWT token as: Bearer <your_token>"
+        required: true
+        type: string
+        example: "Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6..."
+      - name: body
+        in: body
+        required: true
+        schema:
+          type: object
+          required:
+            - fullname
+            - home_address
+            - phone
+            - country
+            - state
+            - city
+            - language
+            - sex
+            - DoB
+            - businessName
+            - businessAddress
+          properties:
+            fullname:
+              type: string
+              example: John Doe
+            home_address:
+              type: string
+              example: 123 Main Street
+            phone:
+              type: string
+              example: "+1234567890"
+            country:
+              type: string
+              example: "USA"
+            state:
+              type: string
+              example: "California"
+            city:
+              type: string
+              example: "Los Angeles"
+            language:
+              type: string
+              example: "English"
+            sex:
+              type: string
+              example: "Male"
+            DoB:
+              type: string
+              format: date
+              example: "1990-01-01"
+            businessName:
+              type: string
+              example: "My Business"
+            businessAddress:
+              type: string
+              example: "456 Market Street"
+    responses:
+      201:
+        description: Business info created successfully
+      400:
+        description: Bad request or business info already exists
+      404:
+        description: User not found
     """
-    # Get user ID from JWT token
     current_user_id = get_jwt_identity()
-    
-    data = request.json
-
-    # Find the current user
     user = User.query.get(current_user_id)
     if not user:
         return jsonify({"message": "User not found"}), 404
 
-    # Get the fields
-    fullname = data.get('fullname')
-    homeAddress = data.get('home_address')
-    phone = data.get('phone')
-    country = data.get('country')
-    state = data.get('state')
-    city = data.get('city')
-    language = data.get('language')
-    sex = data.get('sex')
-    DoB = data.get('DateOfBirth')
-    businessName = data.get('businessName')
-    businessAddress = data.get('businessAddress')
+    if user.business_basic_info:
+        return jsonify({"message": "Business info already exists. Use PUT to update."}), 400
 
-    required_fields = ["fullname", "address","phone", "country", "state", "city", "language", "sex", "DoB", "businessName", "businessAddress"]
+    data = request.json
+    required_fields = ["fullname", "home_address", "phone", "country", "state", "city", "language", "sex", "DoB", "businessName", "businessAddress"]
     if not all(data.get(field) for field in required_fields):
         return jsonify({"message": "Fill all fields"}), 400
 
-    dob = None
     try:
-        dob = datetime.strptime(DoB, "%Y-%m-%d").date()
+        dob = datetime.strptime(data["DoB"], "%Y-%m-%d").date()
     except (ValueError, TypeError):
-        return jsonify({"message": "dateOfBirth must be in YYYY-MM-DD format"}), 400
+        return jsonify({"message": "DoB must be in YYYY-MM-DD format"}), 400
 
-    business_basic_info = user.business_basic_info
-    if not business_basic_info:
-        business_basic_info = BusinessBasicInfo(
-            user_id=user.id
-        )
+    business_basic_info = BusinessBasicInfo(
+        user_id=user.id,
+        fullname=data["fullname"],
+        homeAddress=data["home_address"],
+        phone=data["phone"],
+        country=data["country"],
+        state=data["state"],
+        city=data["city"],
+        language=data["language"],
+        sex=data["sex"],
+        DoB=dob,
+        businessName=data["businessName"],
+        businessAddress=data["businessAddress"]
+    )
 
-    # Fill the fields
-    business_basic_info.fullname = fullname
-    business_basic_info.homeAddress = homeAddress
-    business_basic_info.phone = phone
-    business_basic_info.country = country
-    business_basic_info.state = state
-    business_basic_info.city = city
-    business_basic_info.language = language
-    business_basic_info.sex = sex
-    business_basic_info.DoB = DoB
-    business_basic_info.businessName = businessName
-    business_basic_info.businessAddress = businessAddress
-
-    # Add if new record
-    if not user.business_basic_info:
-        db.session.add(business_basic_info)
-
+    db.session.add(business_basic_info)
     db.session.commit()
-    return jsonify({"message": "User info updated successfully"}), 200
+    return jsonify({"message": "Business info created successfully"}), 201
 
 
-@business_bp.route("/api/business/add_credentials", methods=["POST"])
+@business_bp.route('/api/business/basic_info', methods=['PUT'])
 @jwt_required()
-def set_business_credentials():
+def update_business_basic_info():
     """
-Set User Business Credentials
----
-tags:
-  - Business
-security:
-  - Bearer: []
-consumes:
-  - application/json
-parameters:
-  - name: Authorization
-    in: header
-    description: "JWT token as: Bearer <your_token>"
-    required: true
-    type: string
-    example: "Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6..."
-  - name: body
-    in: body
-    required: true
-    schema:
-      type: object
-      required:
-        - profession
-        - YearsOfExperience
-        - skills
-        - description
-        - businessInterests
-      properties:
-        profession:
-          type: string
-          example: "Software Engineer"
-        YearsOfExperience:
-          type: integer
-          example: 5
-        skills:
-          type: string
-          example: "Python, Flask, SQL"
-        description:
-          type: string
-          example: "Experienced in backend systems and cloud architecture."
-        businessInterests:
-          type: string
-          example: "AI, SaaS, Cloud computing"
-responses:
-  200:
-    description: Credentials updated successfully
-  201:
-    description: Credentials saved successfully
-  400:
-    description: Bad request
-  404:
-    description: User not found
+    Update Business Basic Info
+    ---
+    tags:
+      - Business
+    security:
+      - Bearer: []
+    consumes:
+      - application/json
+    parameters:
+      - name: Authorization
+        in: header
+        description: "JWT token as: Bearer <your_token>"
+        required: true
+        type: string
+        example: "Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6..."
+      - name: body
+        in: body
+        required: true
+        schema:
+          type: object
+          properties:
+            fullname:
+              type: string
+              example: John Doe
+            home_address:
+              type: string
+              example: 123 Main Street
+            phone:
+              type: string
+              example: "+1234567890"
+            country:
+              type: string
+              example: "USA"
+            state:
+              type: string
+              example: "California"
+            city:
+              type: string
+              example: "Los Angeles"
+            language:
+              type: string
+              example: "English"
+            sex:
+              type: string
+              example: "Male"
+            DoB:
+              type: string
+              format: date
+              example: "1990-01-01"
+            businessName:
+              type: string
+              example: "My Business"
+            businessAddress:
+              type: string
+              example: "456 Market Street"
+    responses:
+      200:
+        description: Business info updated successfully
+      400:
+        description: Bad request
+      404:
+        description: User or business info not found
     """
-    # Get user ID from JWT token
     current_user_id = get_jwt_identity()
-    data = request.json
-
-    # Verify user exists
     user = User.query.get(current_user_id)
     if not user:
         return jsonify({"message": "User not found"}), 404
 
-    profession = data.get('profession')
-    YearsOfExperience = data.get('YearsOfExperience')
-    skills = data.get('skills')
-    description = data.get('description')
-    businessInterests = data.get('businessInterests')
+    business_basic_info = user.business_basic_info
+    if not business_basic_info:
+        return jsonify({"message": "Business info not found. Use POST to create."}), 404
 
+    data = request.json
+    try:
+        dob_str = data.get("DoB")
+        dob = datetime.strptime(dob_str, "%Y-%m-%d").date() if dob_str else business_basic_info.DoB
+    except (ValueError, TypeError):
+        return jsonify({"message": "DoB must be in YYYY-MM-DD format"}), 400
+
+    business_basic_info.fullname = data.get("fullname", business_basic_info.fullname)
+    business_basic_info.homeAddress = data.get("home_address", business_basic_info.homeAddress)
+    business_basic_info.phone = data.get("phone", business_basic_info.phone)
+    business_basic_info.country = data.get("country", business_basic_info.country)
+    business_basic_info.state = data.get("state", business_basic_info.state)
+    business_basic_info.city = data.get("city", business_basic_info.city)
+    business_basic_info.language = data.get("language", business_basic_info.language)
+    business_basic_info.sex = data.get("sex", business_basic_info.sex)
+    business_basic_info.DoB = dob
+    business_basic_info.businessName = data.get("businessName", business_basic_info.businessName)
+    business_basic_info.businessAddress = data.get("businessAddress", business_basic_info.businessAddress)
+
+    db.session.commit()
+    return jsonify({"message": "Business info updated successfully"}), 200
+
+
+@business_bp.route("/api/business/credentials", methods=["POST"])
+@jwt_required()
+def create_business_credentials():
+    """
+    Create User Business Credentials
+    ---
+    tags:
+      - Business
+    security:
+      - Bearer: []
+    consumes:
+      - application/json
+    parameters:
+      - name: Authorization
+        in: header
+        description: "JWT token as: Bearer <your_token>"
+        required: true
+        type: string
+        example: "Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6..."
+      - name: body
+        in: body
+        required: true
+        schema:
+          type: object
+          required:
+            - profession
+            - YearsOfExperience
+            - skills
+            - description
+            - businessInterests
+          properties:
+            profession:
+              type: string
+              example: "Software Engineer"
+            YearsOfExperience:
+              type: integer
+              example: 5
+            skills:
+              type: string
+              example: "Python, Flask, SQL"
+            description:
+              type: string
+              example: "Experienced in backend systems and cloud architecture."
+            businessInterests:
+              type: string
+              example: "AI, SaaS, Cloud computing"
+    responses:
+      201:
+        description: Credentials saved successfully
+      400:
+        description: Bad request or credentials already exist
+      404:
+        description: User not found
+    """
+    current_user_id = get_jwt_identity()
+    user = User.query.get(current_user_id)
+    if not user:
+        return jsonify({"message": "User not found"}), 404
+
+    if BusinessCredentials.query.filter_by(user_id=current_user_id).first():
+        return jsonify({"message": "Credentials already exist. Use PUT to update."}), 400
+
+    data = request.json
     required_fields = ["profession", "YearsOfExperience", "skills", "description", "businessInterests"]
     if not all(data.get(field) for field in required_fields):
         return jsonify({"message": "Fill all fields"}), 400
 
-    # Check if user already has preferences
-    existing_credentials = BusinessCredentials.query.filter_by(user_id=current_user_id).first()
-    
-    if existing_credentials:
-        # Update existing preferences
-        existing_credentials.profession = profession
-        existing_credentials.YearsOfExperience = YearsOfExperience
-        existing_credentials.skills = skills
-        existing_credentials.description = description
-        existing_credentials.businessInterests = businessInterests
-        
-        message = "Credentials updated successfully"
-    else:
-        # Create new preferences
-        new_credentials = BusinessCredentials(
-            user_id=current_user_id,
-            profession=profession,
-            YearsOfExperience=YearsOfExperience,
-            skills=skills,
-            descripption=description,
-            businessInterests=businessInterests
-    
-        )
-        db.session.add(new_credentials)
-        message = "Preferences saved successfully"
+    new_credentials = BusinessCredentials(
+        user_id=current_user_id,
+        profession=data["profession"],
+        YearsOfExperience=data["YearsOfExperience"],
+        skills=data["skills"],
+        description=data["description"],
+        businessInterests=data["businessInterests"]
+    )
+
+    db.session.add(new_credentials)
+    db.session.commit()
+    return jsonify({"message": "Credentials saved successfully"}), 201
+
+
+@business_bp.route("/api/business/credentials", methods=["PUT"])
+@jwt_required()
+def update_business_credentials():
+    """
+    Update User Business Credentials
+    ---
+    tags:
+      - Business
+    security:
+      - Bearer: []
+    consumes:
+      - application/json
+    parameters:
+      - name: Authorization
+        in: header
+        description: "JWT token as: Bearer <your_token>"
+        required: true
+        type: string
+        example: "Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6..."
+      - name: body
+        in: body
+        required: true
+        schema:
+          type: object
+          properties:
+            profession:
+              type: string
+              example: "Software Engineer"
+            YearsOfExperience:
+              type: integer
+              example: 5
+            skills:
+              type: string
+              example: "Python, Flask, SQL"
+            description:
+              type: string
+              example: "Experienced in backend systems and cloud architecture."
+            businessInterests:
+              type: string
+              example: "AI, SaaS, Cloud computing"
+    responses:
+      200:
+        description: Credentials updated successfully
+      400:
+        description: Bad request
+      404:
+        description: User or credentials not found
+    """
+    current_user_id = get_jwt_identity()
+    user = User.query.get(current_user_id)
+    if not user:
+        return jsonify({"message": "User not found"}), 404
+
+    credentials = BusinessCredentials.query.filter_by(user_id=current_user_id).first()
+    if not credentials:
+        return jsonify({"message": "Credentials not found. Use POST to create."}), 404
+
+    data = request.json
+
+    # Update only fields provided in request
+    credentials.profession = data.get("profession", credentials.profession)
+    credentials.YearsOfExperience = data.get("YearsOfExperience", credentials.YearsOfExperience)
+    credentials.skills = data.get("skills", credentials.skills)
+    credentials.description = data.get("description", credentials.description)
+    credentials.businessInterests = data.get("businessInterests", credentials.businessInterests)
 
     db.session.commit()
-    return jsonify({"message": message}), 200
+    return jsonify({"message": "Credentials updated successfully"}), 200
 
 
 @business_bp.route('/api/business/homepage', methods=['GET'])
