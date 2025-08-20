@@ -714,6 +714,67 @@ def reset_password():
     return jsonify({"message": "Password reset successful"}), 200
 
 
+@auth_bp.route('/api/delete-account', methods=['DELETE'])
+@jwt_required()
+def delete_account():
+    """
+    Delete the current user's account
+    ---
+    tags:
+      - User
+    security:
+      - Bearer: []
+    parameters:
+      - name: Authorization
+        in: header
+        description: 'JWT token as: Bearer <your_token>'
+        required: true
+        schema:
+          type: string
+          example: "Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6..."
+    responses:
+      200:
+        description: Account deleted successfully
+      404:
+        description: User not found
+    """
+    current_user_id = get_jwt_identity()
+    user = User.query.get(current_user_id)
+
+    if not user:
+        return jsonify({"error": "User not found"}), 404
+
+    try:
+        if user.love_basic_info:
+            db.session.delete(user.love_basic_info)
+        if user.personality:
+            db.session.delete(user.personality)
+        if user.matchpreference:
+            db.session.delete(user.matchpreference)
+        if user.business_basic_info:
+            db.session.delete(user.business_basic_info)
+        if user.business_credentials:
+            db.session.delete(user.business_credentials)
+
+        # Saved photos
+        for photo in user.saved_images:
+            db.session.delete(photo)
+
+        # Blog posts
+        for post in user.blog_posts:
+            db.session.delete(post)
+
+        # Finally, delete user itself
+        db.session.delete(user)
+        db.session.commit()
+
+        return jsonify({"message": "Account deleted successfully"}), 200
+
+    except Exception as e:
+        db.session.rollback()
+        return jsonify({"error": f"Failed to delete account: {str(e)}"}), 500
+    
+
 linkedin = oauth.register(
     name='linkedin',
     client_id = os.getenv("LINKEDIN_CLIENT_ID"),
