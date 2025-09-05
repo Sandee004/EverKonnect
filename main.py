@@ -1,19 +1,19 @@
-from core.imports import (
-    os, time, base64,
+from core.imports import ( base64,
     Flask, request, jsonify,
-    create_access_token, JWTManager, get_jwt_identity, jwt_required,
-    Swagger, load_dotenv, threading,
-    datetime, timedelta, date, filetype
+    JWTManager, get_jwt_identity, jwt_required,
+    Swagger, load_dotenv,
+    datetime, timedelta, date, filetype, IntegrityError
 )
 from core.config import Config
 from core.extensions import db, jwt, mail, swagger, cors, bcrypt, oauth
-from core.models import User, TempUser, UserPersonality, MatchPreference, SavedPhoto
+from core.models import User, TempUser, UserPersonality, MatchPreference, SavedPhoto, LoveBasicInfo
 from routes.auth_routes import auth_bp
 from routes.love import love_bp
 from routes.business import business_bp
 from routes.connection import connection_bp
 from routes.blog import blog_bp
 from routes.gallery import gallery_bp
+
 
 def create_app():
     app = Flask(__name__)
@@ -46,6 +46,216 @@ def ping():
 def model_to_dict(model):
     """Helper to convert a SQLAlchemy model to a dict."""
     return {column.name: getattr(model, column.name) for column in model.__table__.columns}
+
+
+def seed_users():
+    """Prepopulate the database with 5 users and their related info, without duplicates."""
+    users_data = [
+        {
+            "email": "alice@example.com",
+            "phone": "1234567890",
+            "username": "alice123",
+            "account_type": "love",
+            "love_basic_info": {
+                "nickname": "Alice",
+                "fullname": "Alice Johnson",
+                "date_of_birth": date(1995, 5, 20),
+                "age_range": "25-30",
+                "marital_status": "Single",
+                "country_of_origin": "USA",
+                "tribe": "Navajo",
+                "current_location": "New York",
+                "skin_tone": "Fair"
+            },
+            "personality": {
+                "height": "5'6",
+                "eye_colour": "Blue",
+                "body_type": "Slim",
+                "hair_colour": "Blonde",
+                "hair_style": "Straight",
+                "interest": "travel, cooking, reading",
+                "hobbies": "yoga, hiking",
+                "music": "pop, jazz",
+                "movies": "romance, drama",
+                "activities": "dancing, volunteering",
+                "personality": "extrovert, kind",
+                "religion": "Christianity",
+                "education": "Bachelor's",
+                "languages": "English, Spanish",
+                "values": "family, honesty"
+            }
+        },
+        {
+            "email": "bob@example.com",
+            "phone": "9876543210",
+            "username": "bobster",
+            "account_type": "love",
+            "love_basic_info": {
+                "nickname": "Bob",
+                "fullname": "Bob Williams",
+                "date_of_birth": date(1990, 8, 10),
+                "age_range": "30-35",
+                "marital_status": "Single",
+                "country_of_origin": "Canada",
+                "tribe": "Cree",
+                "current_location": "Toronto",
+                "skin_tone": "Medium"
+            },
+            "personality": {
+                "height": "5'10",
+                "eye_colour": "Brown",
+                "body_type": "Athletic",
+                "hair_colour": "Black",
+                "hair_style": "Curly",
+                "interest": "sports, travel, photography",
+                "hobbies": "cycling, basketball",
+                "music": "rock, hip-hop",
+                "movies": "action, comedy",
+                "activities": "gym, concerts",
+                "personality": "adventurous, funny",
+                "religion": "Islam",
+                "education": "Master's",
+                "languages": "English, French",
+                "values": "loyalty, ambition"
+            }
+        },
+        {
+            "email": "charlie@example.com",
+            "phone": "5551112222",
+            "username": "charlie_x",
+            "account_type": "love",
+            "love_basic_info": {
+                "nickname": "Charlie",
+                "fullname": "Charlie Kim",
+                "date_of_birth": date(1993, 3, 15),
+                "age_range": "25-30",
+                "marital_status": "Divorced",
+                "country_of_origin": "South Korea",
+                "tribe": "None",
+                "current_location": "Seoul",
+                "skin_tone": "Light"
+            },
+            "personality": {
+                "height": "5'8",
+                "eye_colour": "Black",
+                "body_type": "Average",
+                "hair_colour": "Brown",
+                "hair_style": "Wavy",
+                "interest": "gaming, anime, technology",
+                "hobbies": "coding, chess",
+                "music": "kpop, edm",
+                "movies": "sci-fi, thriller",
+                "activities": "esports, hiking",
+                "personality": "introvert, thoughtful",
+                "religion": "Buddhism",
+                "education": "Bachelor's",
+                "languages": "Korean, English",
+                "values": "respect, discipline"
+            }
+        },
+        {
+            "email": "diana@example.com",
+            "phone": "4449998888",
+            "username": "diana_queen",
+            "account_type": "love",
+            "love_basic_info": {
+                "nickname": "Diana",
+                "fullname": "Diana Prince",
+                "date_of_birth": date(1998, 11, 25),
+                "age_range": "20-25",
+                "marital_status": "Single",
+                "country_of_origin": "UK",
+                "tribe": "None",
+                "current_location": "London",
+                "skin_tone": "Olive"
+            },
+            "personality": {
+                "height": "5'7",
+                "eye_colour": "Green",
+                "body_type": "Slim",
+                "hair_colour": "Red",
+                "hair_style": "Straight",
+                "interest": "fashion, arts, travel",
+                "hobbies": "painting, blogging",
+                "music": "indie, pop",
+                "movies": "romantic comedy, fantasy",
+                "activities": "museum visits, cooking",
+                "personality": "creative, caring",
+                "religion": "Christianity",
+                "education": "Bachelor's",
+                "languages": "English, Italian",
+                "values": "kindness, creativity"
+            }
+        },
+        {
+            "email": "eric@example.com",
+            "phone": "2227776666",
+            "username": "eric_the_great",
+            "account_type": "love",
+            "love_basic_info": {
+                "nickname": "Eric",
+                "fullname": "Eric Johnson",
+                "date_of_birth": date(1992, 6, 5),
+                "age_range": "30-35",
+                "marital_status": "Single",
+                "country_of_origin": "USA",
+                "tribe": "Cherokee",
+                "current_location": "Los Angeles",
+                "skin_tone": "Dark"
+            },
+            "personality": {
+                "height": "6'0",
+                "eye_colour": "Hazel",
+                "body_type": "Muscular",
+                "hair_colour": "Black",
+                "hair_style": "Buzzcut",
+                "interest": "fitness, business, travel",
+                "hobbies": "gym, investing",
+                "music": "hip-hop, r&b",
+                "movies": "thriller, documentary",
+                "activities": "networking, basketball",
+                "personality": "confident, driven",
+                "religion": "Atheist",
+                "education": "MBA",
+                "languages": "English, Spanish",
+                "values": "success, honesty"
+            }
+        },
+    ]
+    raw_password = "password123"
+    hashed_password = bcrypt.generate_password_hash(raw_password).decode('utf-8')
+
+    created_count = 0
+    for data in users_data:
+        existing = User.query.filter_by(email=data["email"]).first()
+        if existing:
+            print(f"⚠️ User with email {data['email']} already exists, skipping.")
+            continue
+
+        user = User(
+            email=data["email"],
+            phone=data["phone"],
+            username=data["username"],
+            password_hash=hashed_password,
+            account_type=data["account_type"]
+        )
+        db.session.add(user)
+        db.session.flush()  # get user.id
+
+        love_info = LoveBasicInfo(user_id=user.id, **data["love_basic_info"])
+        personality = UserPersonality(user_id=user.id, **data["personality"])
+
+        db.session.add(love_info)
+        db.session.add(personality)
+
+        created_count += 1
+
+    try:
+        db.session.commit()
+        print(f"✅ {created_count} new users seeded successfully (all with password123)!")
+    except IntegrityError:
+        db.session.rollback()
+        print("❌ Seeding failed due to duplicate unique fields.")
 
 
 def calculate_match_score(preferences, user, personality):
@@ -174,10 +384,7 @@ def get_matches():
             continue
 
         score = calculate_match_score(preferences, candidate, candidate.personality)
-        if score < 85:
-            continue
 
-        # Prepare profile picture
         profile_pic_data = None
         if candidate.profile_pic:
             try:
@@ -196,10 +403,10 @@ def get_matches():
             "profile_pic": profile_pic_data
         })
 
+    # Sort so highest score is first
     matches.sort(key=lambda m: m['score'], reverse=True)
 
     return jsonify(matches), 200
-
 
 @app.route('/match/account/<int:user_id>', methods=['GET'])
 @jwt_required()
@@ -473,4 +680,5 @@ if __name__ == "__main__":
     with app.app_context():
         db.create_all()
         prepopulate_temp_users()
+        seed_users()
     app.run(debug=True)
