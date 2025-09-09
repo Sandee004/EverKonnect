@@ -110,7 +110,7 @@ class BusinessBasicInfo(db.Model):
     businessAddress = db.Column(db.String(250), nullable=True)
 
     isAnonymous = db.Column(db.Boolean, default=False)
-    anonymousProfile = db.relationship('BusinessAnonymous', backref='business_basic_info')
+    anonymousProfile = db.relationship('BusinessAnonymous', backref='business_basic_info', uselist=False)
 
 class BusinessCredentials(db.Model):
     id = db.Column(db.Integer, primary_key=True)
@@ -125,6 +125,8 @@ class BusinessCredentials(db.Model):
 class BusinessAnonymous(db.Model):
     id = db.Column(db.Integer, primary_key=True)
     username = db.Column(db.String(200), nullable=True)
+
+    business_id = db.Column(db.Integer, db.ForeignKey('business_basic_info.id'), nullable=False)
 
 
 class Connection(db.Model):
