@@ -408,6 +408,7 @@ def get_matches():
 
     return jsonify(matches), 200
 
+
 @app.route('/match/account/<int:user_id>', methods=['GET'])
 @jwt_required()
 def get_match_account(user_id):

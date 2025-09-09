@@ -6,7 +6,7 @@ from core.imports import (
 from core.config import Config
 import cloudinary.uploader
 from core.extensions import db
-from core.models import User, BusinessBasicInfo, BusinessCredentials, SavedPhoto, Message
+from core.models import User, BusinessBasicInfo, BusinessCredentials, SavedPhoto, Message, BusinessAnonymous
 
 
 business_bp = Blueprint('business', __name__)
@@ -380,6 +380,44 @@ def update_business_credentials():
     return jsonify({"message": "Credentials updated successfully"}), 200
 
 
+@business_bp.route('/toggle-anonymous', methods=['POST'])
+@jwt_required()
+def toggle_anonymous():
+    user_id = get_jwt_identity()
+    business_info = BusinessBasicInfo.query.filter_by(user_id=user_id).first()
+
+    if not business_info:
+        return jsonify({"error": "Business profile not found"}), 404
+
+    # Flip the state
+    business_info.isAnonymous = not business_info.isAnonymous
+
+    if business_info.isAnonymous:
+        # Enable anonymous mode
+        if not business_info.anonymousProfile:
+            anon = BusinessAnonymous(username=request.json.get("username"))
+            business_info.anonymousProfile = anon
+            db.session.add(anon)
+        else:
+            if "username" in request.json:
+                business_info.anonymousProfile.username = request.json["username"]
+
+        message = "Anonymous profile enabled"
+    else:
+        # Disable anonymous mode
+        message = "Anonymous profile disabled"
+
+    db.session.commit()
+
+    return jsonify({
+        "message": message,
+        "isAnonymous": business_info.isAnonymous,
+        "anonymous": {
+            "username": business_info.anonymousProfile.username if business_info.anonymousProfile else None
+        }
+    }), 200
+
+
 @business_bp.route('/api/business/homepage', methods=['GET'])
 @jwt_required()
 def get_users_with_business():
@@ -522,14 +560,21 @@ def get_message_contacts():
         description: Unauthorized - Missing or invalid JWT
     """
     current_user_id = get_jwt_identity()
+    current_user = User.query.get(current_user_id)
 
-    # Get all distinct user IDs the current user has had message interaction with
+    if not current_user or not current_user.account_type:
+        return jsonify({"error": "User does not belong to a valid account type"}), 403
+
+    # Get distinct contact IDs
     sent_ids = db.session.query(Message.receiver_id).filter_by(sender_id=current_user_id)
     received_ids = db.session.query(Message.sender_id).filter_by(receiver_id=current_user_id)
-
     contact_ids = {row[0] for row in sent_ids.union(received_ids).distinct().all()}
 
-    contacts = User.query.filter(User.id.in_(contact_ids)).all()
+    # Only include contacts of same account type
+    contacts = User.query.filter(
+        User.id.in_(contact_ids),
+        User.account_type == current_user.account_type
+    ).all()
 
     result = []
     for user in contacts:
@@ -605,6 +650,11 @@ def send_message():
         description: Unauthorized - Missing or invalid JWT
     """
     sender_id = get_jwt_identity()
+    sender = User.query.get(sender_id)
+
+    if not sender or not sender.account_type:
+        return jsonify({"error": "Sender does not belong to a valid account type"}), 403
+
     receiver_id = request.json.get('receiver_id')
     content = request.json.get('content')
 
@@ -612,6 +662,11 @@ def send_message():
     if not receiver:
         return jsonify({"error": "Receiver not found"}), 404
 
+    # Enforce same account type
+    if sender.account_type != receiver.account_type:
+        return jsonify({"error": f"{sender.account_type.capitalize()} accounts can only message {sender.account_type.capitalize()} accounts"}), 403
+
+    # Create and save message
     message = Message(sender_id=sender_id, receiver_id=receiver_id, content=content)
     db.session.add(message)
     db.session.commit()
@@ -671,7 +726,23 @@ def get_conversation(receiver_id):
         description: Unauthorized - Missing or invalid JWT
     """
     sender_id = get_jwt_identity()
+    sender = User.query.get(sender_id)
+    receiver = User.query.get(receiver_id)
 
+    if not sender or not sender.account_type:
+        return jsonify({"error": "Sender does not belong to a valid account type"}), 403
+
+    if not receiver or not receiver.account_type:
+        return jsonify({"error": "Receiver does not belong to a valid account type"}), 404
+
+    # Enforce same account type
+    if sender.account_type != receiver.account_type:
+        return jsonify({
+            "error": f"{sender.account_type.capitalize()} accounts "
+                     f"can only view conversations with {sender.account_type.capitalize()} accounts"
+        }), 403
+
+    # Fetch conversation
     messages = Message.query.filter(
         ((Message.sender_id == sender_id) & (Message.receiver_id == receiver_id)) |
         ((Message.sender_id == receiver_id) & (Message.receiver_id == sender_id))
@@ -687,8 +758,8 @@ def get_conversation(receiver_id):
         }
         for msg in messages
     ]
-    return jsonify(result), 200
 
+    return jsonify(result), 200
 
 @business_bp.route('/api/photos', methods=['POST'])
 @jwt_required()
