@@ -383,6 +383,58 @@ def update_business_credentials():
 @business_bp.route('/toggle-anonymous', methods=['POST'])
 @jwt_required()
 def toggle_anonymous():
+    """
+    Toggle anonymous mode for a business user
+    ---
+    tags:
+      - Business
+    security:
+      - Bearer: []
+    parameters:
+      - name: Authorization
+        in: header
+        description: 'JWT token as: Bearer <your_token>'
+        required: true
+        schema:
+          type: string
+          example: "Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6..."
+      - name: body
+        in: body
+        description: 'Optional username to set for anonymous profile'
+        required: false
+        schema:
+          type: object
+          properties:
+            username:
+              type: string
+              example: "anon_user123"
+    responses:
+      200:
+        description: Anonymous mode toggled successfully
+        schema:
+          type: object
+          properties:
+            message:
+              type: string
+              example: "Anonymous profile enabled"
+            isAnonymous:
+              type: boolean
+              example: true
+            anonymous:
+              type: object
+              properties:
+                username:
+                  type: string
+                  example: "anon_user123"
+      404:
+        description: Business profile not found
+        schema:
+          type: object
+          properties:
+            error:
+              type: string
+              example: "Business profile not found"
+    """
     user_id = get_jwt_identity()
     business_info = BusinessBasicInfo.query.filter_by(user_id=user_id).first()
 
@@ -414,6 +466,78 @@ def toggle_anonymous():
         "isAnonymous": business_info.isAnonymous,
         "anonymous": {
             "username": business_info.anonymousProfile.username if business_info.anonymousProfile else None
+        }
+    }), 200
+
+
+@business_bp.route('/edit-anonymous', methods=['PUT'])
+@jwt_required()
+def edit_anonymous():
+    """
+    Edit anonymous profile details for a business user
+    ---
+    tags:
+      - Business
+    security:
+      - Bearer: []
+    parameters:
+      - name: Authorization
+        in: header
+        description: 'JWT token as: Bearer <your_token>'
+        required: true
+        schema:
+          type: string
+          example: "Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6..."
+      - name: body
+        in: body
+        description: 'New details for the anonymous profile'
+        required: true
+        schema:
+          type: object
+          properties:
+            username:
+              type: string
+              example: "new_anon_username"
+    responses:
+      200:
+        description: Anonymous profile updated successfully
+        schema:
+          type: object
+          properties:
+            message:
+              type: string
+              example: "Anonymous profile updated"
+            anonymous:
+              type: object
+              properties:
+                username:
+                  type: string
+                  example: "new_anon_username"
+      404:
+        description: Business or anonymous profile not found
+        schema:
+          type: object
+          properties:
+            error:
+              type: string
+              example: "Anonymous profile not found"
+    """
+    user_id = get_jwt_identity()
+    business_info = BusinessBasicInfo.query.filter_by(user_id=user_id).first()
+
+    if not business_info or not business_info.anonymousProfile:
+        return jsonify({"error": "Anonymous profile not found"}), 404
+
+    data = request.json
+    if "username" in data:
+        business_info.anonymousProfile.username = data["username"]
+
+    db.session.commit()
+
+    return jsonify({
+        "message": "Anonymous profile updated",
+        "anonymous": {
+            "username": business_info.anonymousProfile.username
         }
     }), 200
 
