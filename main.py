@@ -6,7 +6,7 @@ from core.imports import ( base64,
 )
 from core.config import Config
 from core.extensions import db, jwt, mail, swagger, cors, bcrypt, oauth
-from core.models import User, TempUser, UserPersonality, MatchPreference, SavedPhoto, LoveBasicInfo
+from core.models import User, TempUser, UserPersonality, MatchPreference, SavedPhoto, LoveBasicInfo, BusinessBasicInfo, BusinessCredentials
 from routes.auth_routes import auth_bp
 from routes.love import love_bp
 from routes.business import business_bp
@@ -47,9 +47,8 @@ def model_to_dict(model):
     """Helper to convert a SQLAlchemy model to a dict."""
     return {column.name: getattr(model, column.name) for column in model.__table__.columns}
 
-
-def seed_users():
-    """Prepopulate the database with 5 users and their related info, without duplicates."""
+def seed_love_users():
+    """Prepopulate the database with 5 users and their related info, including preferences."""
     users_data = [
         {
             "email": "alice@example.com",
@@ -83,6 +82,17 @@ def seed_users():
                 "education": "Bachelor's",
                 "languages": "English, Spanish",
                 "values": "family, honesty"
+            },
+            "matchpreference": {
+                "age_range": "27-35",
+                "marital_status": "Single",
+                "country_of_origin": "USA",
+                "current_location": "USA",
+                "body_type": "Athletic",
+                "religion": "Christianity",
+                "education": "Bachelor's or higher",
+                "languages": "English",
+                "values": "family, honesty, ambition"
             }
         },
         {
@@ -117,6 +127,17 @@ def seed_users():
                 "education": "Master's",
                 "languages": "English, French",
                 "values": "loyalty, ambition"
+            },
+            "matchpreference": {
+                "age_range": "25-32",
+                "marital_status": "Single",
+                "country_of_origin": "Canada",
+                "current_location": "Toronto",
+                "body_type": "Slim or Athletic",
+                "religion": "Islam",
+                "education": "Bachelor's or higher",
+                "languages": "English, French",
+                "values": "loyalty, family"
             }
         },
         {
@@ -151,6 +172,17 @@ def seed_users():
                 "education": "Bachelor's",
                 "languages": "Korean, English",
                 "values": "respect, discipline"
+            },
+            "matchpreference": {
+                "age_range": "23-29",
+                "marital_status": "Single or Divorced",
+                "country_of_origin": "South Korea",
+                "current_location": "Seoul",
+                "body_type": "Slim or Average",
+                "religion": "Buddhism or None",
+                "education": "Any",
+                "languages": "Korean, English",
+                "values": "kindness, respect"
             }
         },
         {
@@ -185,6 +217,17 @@ def seed_users():
                 "education": "Bachelor's",
                 "languages": "English, Italian",
                 "values": "kindness, creativity"
+            },
+            "matchpreference": {
+                "age_range": "25-32",
+                "marital_status": "Single",
+                "country_of_origin": "UK or Europe",
+                "current_location": "London",
+                "body_type": "Athletic or Slim",
+                "religion": "Christianity",
+                "education": "Bachelor's or higher",
+                "languages": "English",
+                "values": "creativity, kindness"
             }
         },
         {
@@ -219,9 +262,21 @@ def seed_users():
                 "education": "MBA",
                 "languages": "English, Spanish",
                 "values": "success, honesty"
+            },
+            "matchpreference": {
+                "age_range": "25-32",
+                "marital_status": "Single",
+                "country_of_origin": "USA",
+                "current_location": "Los Angeles",
+                "body_type": "Slim or Athletic",
+                "religion": "Any",
+                "education": "Bachelor's or higher",
+                "languages": "English",
+                "values": "confidence, honesty"
             }
         },
     ]
+
     raw_password = "password123"
     hashed_password = bcrypt.generate_password_hash(raw_password).decode('utf-8')
 
@@ -240,13 +295,15 @@ def seed_users():
             account_type=data["account_type"]
         )
         db.session.add(user)
-        db.session.flush()  # get user.id
+        db.session.flush()  # ensures user.id is available
 
         love_info = LoveBasicInfo(user_id=user.id, **data["love_basic_info"])
         personality = UserPersonality(user_id=user.id, **data["personality"])
+        preference = MatchPreference(user_id=user.id, **data["matchpreference"])
 
         db.session.add(love_info)
         db.session.add(personality)
+        db.session.add(preference)
 
         created_count += 1
 
@@ -256,6 +313,125 @@ def seed_users():
     except IntegrityError:
         db.session.rollback()
         print("❌ Seeding failed due to duplicate unique fields.")
+
+
+def seed_business_users():
+    """Prepopulate the database with 3 business accounts and their related info."""
+    business_users_data = [
+        {
+            "email": "coffeehub@example.com",
+            "phone": "1112223333",
+            "username": "coffeehub",
+            "account_type": "business",
+            "business_basic_info": {
+                "fullname": "James Smith",
+                "homeAddress": "123 Main St",
+                "phone": "1112223333",
+                "country": "USA",
+                "state": "New York",
+                "city": "New York",
+                "language": "English, Spanish",
+                "sex": "Male",
+                "DoB": "1985-04-12",
+                "businessName": "Coffee Hub",
+                "businessAddress": "123 Coffee St, New York, NY"
+            },
+            "business_credentials": {
+                "profession": "Cafe Owner",
+                "YearsOfExperience": 10,
+                "skills": "Customer service, coffee brewing, management",
+                "description": "Runs a modern coffee shop serving artisan coffee and pastries.",
+                "businessInterests": "Expanding franchise, coffee culture, community events"
+            }
+        },
+        {
+            "email": "techflow@example.com",
+            "phone": "2223334444",
+            "username": "techflow",
+            "account_type": "business",
+            "business_basic_info": {
+                "fullname": "Sophia Chen",
+                "homeAddress": "456 Silicon Ave",
+                "phone": "2223334444",
+                "country": "USA",
+                "state": "California",
+                "city": "San Francisco",
+                "language": "English, Mandarin",
+                "sex": "Female",
+                "DoB": "1990-07-08",
+                "businessName": "TechFlow Solutions",
+                "businessAddress": "789 Startup Rd, San Francisco, CA"
+            },
+            "business_credentials": {
+                "profession": "Software Engineer / CEO",
+                "YearsOfExperience": 8,
+                "skills": "Python, Cloud computing, Leadership",
+                "description": "Founder of a SaaS company providing cloud-based productivity tools.",
+                "businessInterests": "AI, SaaS, cloud technology, startups"
+            }
+        },
+        {
+            "email": "fitlife@example.com",
+            "phone": "3334445555",
+            "username": "fitlife",
+            "account_type": "business",
+            "business_basic_info": {
+                "fullname": "Michael Johnson",
+                "homeAddress": "789 Fitness Blvd",
+                "phone": "3334445555",
+                "country": "USA",
+                "state": "Illinois",
+                "city": "Chicago",
+                "language": "English",
+                "sex": "Male",
+                "DoB": "1988-11-22",
+                "businessName": "FitLife Gym",
+                "businessAddress": "456 Health St, Chicago, IL"
+            },
+            "business_credentials": {
+                "profession": "Fitness Trainer / Gym Owner",
+                "YearsOfExperience": 12,
+                "skills": "Personal training, business management, nutrition",
+                "description": "Owns a premium fitness center with modern equipment and personal training.",
+                "businessInterests": "Health, fitness, wellness coaching"
+            }
+        },
+    ]
+
+    raw_password = "password123"
+    hashed_password = bcrypt.generate_password_hash(raw_password).decode('utf-8')
+
+    created_count = 0
+    for data in business_users_data:
+        existing = User.query.filter_by(email=data["email"]).first()
+        if existing:
+            print(f"⚠️ Business user with email {data['email']} already exists, skipping.")
+            continue
+
+        user = User(
+            email=data["email"],
+            phone=data["phone"],
+            username=data["username"],
+            password_hash=hashed_password,
+            account_type=data["account_type"]
+        )
+        db.session.add(user)
+        db.session.flush()  # ensures user.id is available
+
+        business_info = BusinessBasicInfo(user_id=user.id, **data["business_basic_info"])
+        credentials = BusinessCredentials(user_id=user.id, **data["business_credentials"])
+
+        db.session.add(business_info)
+        db.session.add(credentials)
+
+        created_count += 1
+
+    try:
+        db.session.commit()
+        print(f"✅ {created_count} new business users seeded successfully (all with password123)!")
+    except IntegrityError:
+        db.session.rollback()
+        print("❌ Seeding business users failed due to duplicate unique fields.")
 
 
 def calculate_match_score(preferences, user, personality):
@@ -681,5 +857,6 @@ if __name__ == "__main__":
     with app.app_context():
         db.create_all()
         prepopulate_temp_users()
-        seed_users()
+        seed_love_users()
+        seed_business_users()
     app.run(debug=True)

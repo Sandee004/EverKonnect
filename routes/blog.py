@@ -1,6 +1,7 @@
 from flask import Blueprint, request, jsonify
 from flask_jwt_extended import jwt_required, get_jwt_identity
 from core.models import db, BlogPost, BlogLike, User, BlogComment
+import cloudinary.uploader
 
 blog_bp = Blueprint('blog', __name__)
 
@@ -8,58 +9,63 @@ blog_bp = Blueprint('blog', __name__)
 @jwt_required()
 def create_post():
     """
-Create a new blog post by the authenticated user.
----
-tags:
-  - BlogPosts
-security:
-  - Bearer: []
-parameters:
-  - name: Authorization
-    in: header
-    description: 'JWT token as: Bearer <your_token>'
-    required: true
-    schema:
-      type: string
-      example: "Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6..."
-  - name: body
-    in: body
-    description: Blog post details
-    required: true
-    schema:
-      type: object
-      properties:
-        title:
+    Create a new blog post by the authenticated user.
+    ---
+    tags:
+      - BlogPosts
+    security:
+      - Bearer: []
+    parameters:
+      - name: Authorization
+        in: header
+        description: 'JWT token as: Bearer <your_token>'
+        required: true
+        schema:
           type: string
-          example: "My First Blog Post"
+          example: "Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6..."
+      - name: body
+        in: body
+        description: Blog post details
+        required: true
+        schema:
+          type: object
+          properties:
+            title:
+              type: string
+              example: "My First Blog Post"
+            content:
+              type: string
+              example: "This is the content of my blog post."
+    responses:
+      201:
+        description: Blog post created successfully
         content:
-          type: string
-          example: "This is the content of my blog post."
-responses:
-  201:
-    description: Blog post created successfully
-    content:
-      application/json:
-        schema:
-          type: object
-          properties:
-            message:
-              type: string
-              example: "Blog post created"
-  400:
-    description: Missing title or content in the request body
-    content:
-      application/json:
-        schema:
-          type: object
-          properties:
-            error:
-              type: string
-              example: "Missing title or content"
-  401:
-    description: Unauthorized - Missing or invalid JWT
+          application/json:
+            schema:
+              type: object
+              properties:
+                message:
+                  type: string
+                  example: "Blog post created"
+      400:
+        description: Missing title or content in the request body
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                error:
+                  type: string
+                  example: "Missing title or content"
+      401:
+        description: Unauthorized - Missing or invalid JWT
     """
     user_id = get_jwt_identity()
+    user = User.query.get(user_id)
+
+    if not user:
+        return jsonify({"error": "User not found"}), 404
+
     data = request.json
     title = data.get('title')
     content = data.get('content')
@@ -70,47 +76,71 @@ responses:
     post = BlogPost(title=title, content=content, user_id=user_id)
     db.session.add(post)
     db.session.commit()
-    return jsonify({'message': 'Blog post created'}), 201
+
+    return jsonify({'message': f'{user.account_type.capitalize()} blog post created'}), 201
 
 
 @blog_bp.route('/blog/posts', methods=['GET'])
+@jwt_required()
 def get_posts():
     """
-Retrieve all blog posts sorted by newest first.
----
-tags:
-  - BlogPosts
-responses:
-  200:
-    description: List of blog posts
-    content:
-      application/json:
+    Retrieve blog posts restricted to the authenticated user's account type.
+    ---
+    tags:
+      - BlogPosts
+    security:
+      - Bearer: []
+    parameters:
+      - name: Authorization
+        in: header
+        description: 'JWT token as: Bearer <your_token>'
+        required: true
         schema:
-          type: array
-          items:
-            type: object
-            properties:
-              id:
-                type: integer
-                example: 101
-              title:
-                type: string
-                example: "My First Blog Post"
-              content:
-                type: string
-                example: "This is the content of my blog post."
-              author:
-                type: string
-                example: "johndoe"
-              timestamp:
-                type: string
-                format: date-time
-                example: "2025-06-27T14:32:00Z"
-              likes:
-                type: integer
-                example: 5
+          type: string
+    responses:
+      200:
+        description: List of blog posts
+        content:
+          application/json:
+            schema:
+              type: array
+              items:
+                type: object
+                properties:
+                  id:
+                    type: integer
+                    example: 101
+                  title:
+                    type: string
+                    example: "My First Blog Post"
+                  content:
+                    type: string
+                    example: "This is the content of my blog post."
+                  author:
+                    type: string
+                    example: "johndoe"
+                  timestamp:
+                    type: string
+                    format: date-time
+                    example: "2025-06-27T14:32:00Z"
+                  likes:
+                    type: integer
+                    example: 5
     """
-    posts = BlogPost.query.order_by(BlogPost.timestamp.desc()).all()
+    user_id = get_jwt_identity()
+    user = User.query.get(user_id)
+
+    if not user:
+        return jsonify({"error": "User not found"}), 404
+
+    posts = (
+        BlogPost.query
+        .join(User)
+        .filter(User.account_type == user.account_type)
+        .order_by(BlogPost.timestamp.desc())
+        .all()
+    )
+
     result = [{
         'id': p.id,
         'title': p.title,
@@ -119,6 +149,7 @@ responses:
         'timestamp': p.timestamp.isoformat(),
         'likes': len(p.likes)
     } for p in posts]
+
     return jsonify(result), 200
 
 
@@ -192,71 +223,80 @@ def add_comment(post_id):
     security:
       - Bearer: []
     parameters:
+      - name: Authorization
+        in: header
+        description: 'JWT token as: Bearer <your_token>'
+        required: true
+        schema:
+          type: string
       - name: post_id
         in: path
         required: true
+        description: ID of the blog post to add comments
         schema:
           type: integer
-        description: ID of the blog post to comment on
-      - name: Authorization
-        in: header
-        required: true
-        description: Bearer JWT token
-        schema:
-          type: string
-      - name: body
-        in: body
-        required: true
-        schema:
-          type: object
-          required:
-            - content
-          properties:
-            content:
-              type: string
-              example: "Awesome post! Thanks for sharing."
+      - name: content
+        in: formData
+        type: string
+        description: Text comment (optional for business users if uploading a file)
+        required: false
+      - name: file
+        in: formData
+        type: file
+        description: File upload (only for business users)
+        required: false
     responses:
       201:
         description: Comment added successfully
-        schema:
-          type: object
-          properties:
-            message:
-              type: string
-              example: "Comment added successfully"
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                message:
+                  type: string
+                  example: "Comment added successfully"
       400:
-        description: Missing content or bad request
-        schema:
-          type: object
-          properties:
-            error:
-              type: string
-              example: "Content is required"
+        description: Missing comment content or file
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                error:
+                  type: string
+                  example: "Content or file required"
       404:
-        description: Blog post not found
-        schema:
-          type: object
-          properties:
-            error:
-              type: string
-              example: "Post not found"
+        description: Post not found
     """
     user_id = get_jwt_identity()
-    data = request.get_json()
-    content = data.get('content')
+    user = User.query.get(user_id)
 
-    if not content:
-        return jsonify({'error': 'Content is required'}), 400
+    if not user:
+        return jsonify({"error": "User not found"}), 404
 
     post = BlogPost.query.get(post_id)
     if not post:
-        return jsonify({'error': 'Post not found'}), 404
+        return jsonify({"error": "Post not found"}), 404
 
-    comment = BlogComment(post_id=post_id, user_id=user_id, content=content)
+    content = request.form.get('content')
+    file_url = None
+
+    # Allow file uploads only for business accounts
+    if user.account_type == "business" and "file" in request.files:
+        file = request.files["file"]
+        if file:
+            upload_result = cloudinary.uploader.upload(file)
+            file_url = upload_result.get("secure_url")
+
+    if not content and not file_url:
+        return jsonify({"error": "Content or file required"}), 400
+
+    comment = BlogComment(content=content, file_url=file_url, post_id=post.id, user_id=user.id)
     db.session.add(comment)
     db.session.commit()
 
-    return jsonify({'message': 'Comment added successfully'}), 201
+    return jsonify({"message": "Comment added successfully"}), 201
 
 
 @blog_bp.route('/blog/<int:post_id>/comments', methods=['GET'])
@@ -290,6 +330,9 @@ def get_comments(post_id):
               content:
                 type: string
                 example: "This is so helpful, thanks!"
+              file_url:
+                type: string
+                example: "https://res.cloudinary.com/demo/image/upload/v1234567890/file.pdf"
               timestamp:
                 type: string
                 format: date-time
@@ -312,6 +355,7 @@ def get_comments(post_id):
         'id': c.id,
         'user': c.user.username,
         'content': c.content,
+        'file_url': c.file_url,  # include uploaded file if any
         'timestamp': c.timestamp.isoformat()
     } for c in comments]
 

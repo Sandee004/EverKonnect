@@ -108,6 +108,7 @@ class BusinessBasicInfo(db.Model):
     DoB = db.Column(db.String(250), nullable=True)
     businessName = db.Column(db.String(250), nullable=True)
     businessAddress = db.Column(db.String(250), nullable=True)
+    links = db.Column(db.JSON, nullable=True)
 
     isAnonymous = db.Column(db.Boolean, default=False)
     anonymousProfile = db.relationship('BusinessAnonymous', backref='business_basic_info', uselist=False)
@@ -172,7 +173,8 @@ class BlogLike(db.Model):
 
 class BlogComment(db.Model):
     id = db.Column(db.Integer, primary_key=True)
-    content = db.Column(db.Text, nullable=False)
+    content = db.Column(db.Text, nullable=True)  # optional if file is uploaded
+    file_url = db.Column(db.String(500), nullable=True)  # for Cloudinary uploads
     timestamp = db.Column(db.DateTime, default=datetime.utcnow)
 
     post_id = db.Column(db.Integer, db.ForeignKey('blog_post.id'), nullable=False)

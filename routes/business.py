@@ -189,6 +189,11 @@ def update_business_basic_info():
             businessAddress:
               type: string
               example: "456 Market Street"
+            links:
+              type: array
+              items:
+                type: string
+              example: ["https://mybusiness.com", "https://instagram.com/mybiz"]
     responses:
       200:
         description: Business info updated successfully
@@ -224,6 +229,13 @@ def update_business_basic_info():
     business_basic_info.DoB = dob
     business_basic_info.businessName = data.get("businessName", business_basic_info.businessName)
     business_basic_info.businessAddress = data.get("businessAddress", business_basic_info.businessAddress)
+
+    # ✅ New: handle links
+    if "links" in data:
+        if isinstance(data["links"], list):
+            business_basic_info.links = data["links"]
+        else:
+            return jsonify({"message": "links must be a list of strings"}), 400
 
     db.session.commit()
     return jsonify({"message": "Business info updated successfully"}), 200
@@ -885,10 +897,11 @@ def get_conversation(receiver_id):
 
     return jsonify(result), 200
 
+"""
 @business_bp.route('/api/photos', methods=['POST'])
 @jwt_required()
 def upload_photo():
-    """
+    ""
     Upload a photo for the authenticated user.
     ---
     tags:
@@ -928,7 +941,7 @@ def upload_photo():
         description: User not found
       401:
         description: Unauthorized - Missing or invalid JWT
-    """
+    ""
     user_id = get_jwt_identity()
     
     user = User.query.get(user_id)
@@ -952,7 +965,7 @@ def upload_photo():
 @business_bp.route('/api/photos', methods=['GET'])
 @jwt_required()
 def list_photos():
-    """
+    ""
     List all uploaded photos for the authenticated user.
     ---
     tags:
@@ -995,7 +1008,7 @@ def list_photos():
               example: User not found
       401:
         description: Unauthorized - Missing or invalid JWT
-    """
+    ""
     user_id = get_jwt_identity()
     
     user = User.query.get(user_id)
@@ -1010,3 +1023,4 @@ def list_photos():
             "uploaded_at": p.uploaded_at.isoformat()
         } for p in photos
     ]), 200
+"""
