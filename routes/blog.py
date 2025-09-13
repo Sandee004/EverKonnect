@@ -77,7 +77,7 @@ def create_post():
     db.session.add(post)
     db.session.commit()
 
-    return jsonify({'message': f'{user.account_type.capitalize()} blog post created'}), 201
+    return jsonify({'message': 'Blog post created'}), 201
 
 
 @blog_bp.route('/blog/posts', methods=['GET'])
