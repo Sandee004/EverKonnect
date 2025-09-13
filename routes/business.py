@@ -483,6 +483,63 @@ def toggle_anonymous():
     }), 200
 
 
+@business_bp.route('/anonymous-status', methods=['GET'])
+@jwt_required()
+def get_anonymous_status():
+    """
+    Get anonymous mode status for a business user
+    ---
+    tags:
+      - Business
+    security:
+      - Bearer: []
+    parameters:
+      - name: Authorization
+        in: header
+        description: 'JWT token as: Bearer <your_token>'
+        required: true
+        schema:
+          type: string
+          example: "Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6..."
+    responses:
+      200:
+        description: Current anonymous status
+        schema:
+          type: object
+          properties:
+            isAnonymous:
+              type: boolean
+              example: true
+            anonymous:
+              type: object
+              properties:
+                username:
+                  type: string
+                  example: "anon_user123"
+      404:
+        description: Business profile not found
+        schema:
+          type: object
+          properties:
+            error:
+              type: string
+              example: "Business profile not found"
+    """
+    user_id = get_jwt_identity()
+    business_info = BusinessBasicInfo.query.filter_by(user_id=user_id).first()
+
+    if not business_info:
+        return jsonify({"error": "Business profile not found"}), 404
+
+    return jsonify({
+        "isAnonymous": business_info.isAnonymous,
+        "anonymous": {
+            "username": business_info.anonymousProfile.username
+            if business_info.anonymousProfile else None
+        }
+    }), 200
+
+
 @business_bp.route('/edit-anonymous', methods=['PUT'])
 @jwt_required()
 def edit_anonymous():
