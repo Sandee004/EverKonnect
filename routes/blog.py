@@ -1,6 +1,6 @@
 from flask import Blueprint, request, jsonify
 from flask_jwt_extended import jwt_required, get_jwt_identity
-from core.models import db, BlogPost, BlogLike, User, BlogComment
+from core.models import db, BlogPost, BlogLike, User, BlogComment, BusinessBasicInfo
 import cloudinary.uploader
 
 blog_bp = Blueprint('blog', __name__)
@@ -47,16 +47,27 @@ def create_post():
                 message:
                   type: string
                   example: "Blog post created"
+                post:
+                  type: object
+                  properties:
+                    id:
+                      type: integer
+                      example: 101
+                    title:
+                      type: string
+                      example: "My First Blog Post"
+                    content:
+                      type: string
+                      example: "This is the content of my blog post."
+                    author:
+                      type: string
+                      example: "Anonymous123"
+                    timestamp:
+                      type: string
+                      format: date-time
+                      example: "2025-06-27T14:32:00Z"
       400:
         description: Missing title or content in the request body
-        content:
-          application/json:
-            schema:
-              type: object
-              properties:
-                error:
-                  type: string
-                  example: "Missing title or content"
       401:
         description: Unauthorized - Missing or invalid JWT
     """
@@ -66,18 +77,35 @@ def create_post():
     if not user:
         return jsonify({"error": "User not found"}), 404
 
-    data = request.json
+    data = request.json or {}
     title = data.get('title')
     content = data.get('content')
 
     if not title or not content:
         return jsonify({'error': 'Missing title or content'}), 400
 
+    # Create the blog post
     post = BlogPost(title=title, content=content, user_id=user_id)
     db.session.add(post)
     db.session.commit()
 
-    return jsonify({'message': 'Blog post created'}), 201
+    # Resolve author's display name (anonymous or real)
+    business_info = BusinessBasicInfo.query.filter_by(user_id=user.id).first()
+    if business_info and business_info.isAnonymous and business_info.anonymousProfile:
+        author_name = business_info.anonymousProfile.username
+    else:
+        author_name = user.username
+
+    # Return post info with resolved author
+    return jsonify({
+        'message': 'Blog post created',
+        'post': {
+            'id': post.id,
+            'title': post.title,
+            'content': post.content,
+            'timestamp': post.timestamp.isoformat() if post.timestamp else None
+        }
+    }), 201
 
 
 @blog_bp.route('/blog/posts', methods=['GET'])
@@ -256,16 +284,27 @@ def add_comment(post_id):
                 message:
                   type: string
                   example: "Comment added successfully"
+                comment:
+                  type: object
+                  properties:
+                    id:
+                      type: integer
+                      example: 201
+                    content:
+                      type: string
+                      example: "Great post!"
+                    file_url:
+                      type: string
+                      example: "https://res.cloudinary.com/.../upload/sample.jpg"
+                    author:
+                      type: string
+                      example: "Anonymous123"
+                    timestamp:
+                      type: string
+                      format: date-time
+                      example: "2025-09-13T15:22:00Z"
       400:
         description: Missing comment content or file
-        content:
-          application/json:
-            schema:
-              type: object
-              properties:
-                error:
-                  type: string
-                  example: "Content or file required"
       404:
         description: Post not found
     """
@@ -292,11 +331,32 @@ def add_comment(post_id):
     if not content and not file_url:
         return jsonify({"error": "Content or file required"}), 400
 
-    comment = BlogComment(content=content, file_url=file_url, post_id=post.id, user_id=user.id)
+    # Save the comment
+    comment = BlogComment(
+        content=content,
+        file_url=file_url,
+        post_id=post.id,
+        user_id=user.id
+    )
     db.session.add(comment)
     db.session.commit()
 
-    return jsonify({"message": "Comment added successfully"}), 201
+    # Resolve author's display name
+    business_info = BusinessBasicInfo.query.filter_by(user_id=user.id).first()
+    if business_info and business_info.isAnonymous and business_info.anonymousProfile:
+        author_name = business_info.anonymousProfile.username
+    else:
+        author_name = user.username
+
+    return jsonify({
+        "message": "Comment added successfully",
+        "comment": {
+            "id": comment.id,
+            "content": comment.content,
+            "file_url": comment.file_url,
+            "timestamp": comment.timestamp.isoformat() if comment.timestamp else None
+        }
+    }), 201
 
 
 @blog_bp.route('/blog/<int:post_id>/comments', methods=['GET'])
