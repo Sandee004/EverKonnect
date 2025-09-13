@@ -672,6 +672,14 @@ def get_message_contacts():
       - Messages
     security:
       - Bearer: []
+    parameters:
+      - name: Authorization
+        in: header
+        description: 'JWT token as: Bearer <your_token>'
+        required: true
+        schema:
+          type: string
+          example: "Bearer "
     responses:
       200:
         description: List of users the authenticated user has interacted with via messages
