@@ -123,6 +123,8 @@ def set_basic_info():
         skin_tone=data["skinTone"]
     )
     db.session.add(new_info)
+
+    user.account_type = "love"
     db.session.commit()
 
     return jsonify({"message": "User info saved successfully"}), 201
@@ -236,68 +238,6 @@ def update_basic_info():
 
     db.session.commit()
     return jsonify({"message": "User info updated successfully"}), 200
-
-
-@love_bp.route("/api/love/account_type", methods=["POST"])
-@jwt_required()
-def set_account_type():
-    """
-    Set account type for the current user
-    ---
-    tags:
-      - User
-    security:
-      - Bearer: []
-    parameters:
-      - name: Authorization
-        in: header
-        type: string
-        required: true
-        description: JWT token as Bearer <your_token>
-        example: "Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6..."
-      - in: body
-        name: body
-        required: true
-        schema:
-          type: object
-          properties:
-            accountType:
-              type: string
-              example: "love"  # or "business", etc.
-    responses:
-      200:
-        description: Account type set successfully
-        schema:
-          type: object
-          properties:
-            message:
-              type: string
-              example: "Account type set successfully"
-      404:
-        description: User not found
-        schema:
-          type: object
-          properties:
-            message:
-              type: string
-              example: "User not found"
-    """
-    user_id = get_jwt_identity()
-    user = User.query.get(user_id)
-
-    if not user:
-        return jsonify({"message": "User not found"}), 404
-
-    data = request.get_json()
-    account_type = data.get('accountType')
-
-    if not account_type:
-        return jsonify({"message": "Account type is required"}), 400
-
-    user.account_type = account_type
-    db.session.commit()
-
-    return jsonify({"message": "Account type set successfully"}), 200
 
     
 @love_bp.route("/api/love/set_personality", methods=["POST"])

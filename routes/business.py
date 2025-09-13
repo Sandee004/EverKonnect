@@ -124,8 +124,9 @@ def create_business_basic_info():
         businessName=data["businessName"],
         businessAddress=data["businessAddress"]
     )
-
     db.session.add(business_basic_info)
+
+    user.account_type = "business"
     db.session.commit()
     return jsonify({"message": "Business info created successfully"}), 201
 
@@ -705,6 +706,7 @@ def get_message_contacts():
     """
     current_user_id = get_jwt_identity()
     current_user = User.query.get(current_user_id)
+    print(current_user.account_type)
 
     if not current_user or not current_user.account_type:
         return jsonify({"error": "User does not belong to a valid account type"}), 403
