@@ -6,7 +6,7 @@ from core.imports import (
 from flask import Flask
 from core.config import Config
 from core.extensions import db, mail, bcrypt, oauth
-from core.models import User, TempUser
+from core.models import User, TempUser, Connection, Message as ChatMessage
 from authlib.integrations.flask_client import OAuth
 import cloudinary.uploader
 
@@ -17,20 +17,6 @@ def generate_referral_code(length=8):
     # Generate a random alphanumeric uppercase referral code
     return ''.join(random.choices(string.ascii_uppercase + string.digits, k=length))
 
-"""
-def send_email(to, subject, body):
-    msg = Message(subject=subject, recipients=[to])
-    msg.html = body
-    try:
-        mail.send(msg)
-    except Exception as e:
-        print(f"Error sending email: {e}")
-
-def send_otp_email(email, otp):
-    subject = "Your Account Verification OTP"
-    body = render_template('email.html', otp=otp, year=datetime.now().year)
-    send_email(email, subject, body)
-"""
 
 def send_email(to, subject, body):
     msg = Message(subject=subject, recipients=[to])
@@ -535,7 +521,6 @@ def get_user_profile():
         "id": user.id,
         "email": user.email,
         "phone": user.phone,
-        #"profile_pic": f"data:image/jpeg;base64,{user.profile_pic}" if user.profile_pic else None,
         "profile_pic": f"data:{mime_type};base64,{user.profile_pic}" if user.profile_pic else None,
         "username": user.username,
         "fullname": love_info.fullname if love_info else None,
@@ -718,7 +703,7 @@ def reset_password():
 @jwt_required()
 def delete_account():
     """
-    Delete the current user's account
+    Delete the current user's account (love or business)
     ---
     tags:
       - User
@@ -745,26 +730,43 @@ def delete_account():
         return jsonify({"error": "User not found"}), 404
 
     try:
+        # --- Delete connections where user is sender or receiver ---
+        for conn in db.session.query(Connection).filter(
+            (Connection.sender_id == user.id) | (Connection.receiver_id == user.id)
+        ).all():
+            db.session.delete(conn)
+
+        # --- Delete chat messages where user is sender or receiver ---
+        for msg in db.session.query(ChatMessage).filter(
+            (ChatMessage.sender_id == user.id) | (ChatMessage.receiver_id == user.id)
+        ).all():
+            db.session.delete(msg)
+
+        # --- Love account related ---
         if user.love_basic_info:
             db.session.delete(user.love_basic_info)
         if user.personality:
             db.session.delete(user.personality)
         if user.matchpreference:
             db.session.delete(user.matchpreference)
+
+        # --- Business account related ---
         if user.business_basic_info:
+            if user.business_basic_info.anonymousProfile:
+                db.session.delete(user.business_basic_info.anonymousProfile)
             db.session.delete(user.business_basic_info)
+
         if user.business_credentials:
             db.session.delete(user.business_credentials)
 
-        # Saved photos
+        # --- Common entities ---
         for photo in user.saved_images:
             db.session.delete(photo)
 
-        # Blog posts
         for post in user.blog_posts:
             db.session.delete(post)
 
-        # Finally, delete user itself
+        # --- Finally, delete the user ---
         db.session.delete(user)
         db.session.commit()
 
@@ -773,7 +775,7 @@ def delete_account():
     except Exception as e:
         db.session.rollback()
         return jsonify({"error": f"Failed to delete account: {str(e)}"}), 500
-    
+
 
 linkedin = oauth.register(
     name='linkedin',
