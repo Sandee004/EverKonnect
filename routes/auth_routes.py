@@ -532,6 +532,13 @@ def get_user_profile():
         "tribe": love_info.tribe if love_info else None,
         "current_location": love_info.current_location if love_info else None,
         "skin_tone": love_info.skin_tone if love_info else None,
+        "business_credentials": {
+                    "profession": user.business_credentials.profession if user.business_credentials else None,
+                    "YearsOfExperience": user.business_credentials.YearsOfExperience if user.business_credentials else None,
+                    "skills": user.business_credentials.skills if user.business_credentials else None,
+                    "description": user.business_credentials.description if user.business_credentials else None,
+                    "businessInterests": user.business_credentials.businessInterests if user.business_credentials else None,
+    }
     }
     print("Sent data")
     return jsonify(user_data), 200
