@@ -715,13 +715,12 @@ def get_users_with_business():
                     "businessAddress": b.businessAddress,
                     "links": b.links,
                 },
-                "business_credentials": {
                     "profession": user.business_credentials.profession if user.business_credentials else None,
                     "YearsOfExperience": user.business_credentials.YearsOfExperience if user.business_credentials else None,
                     "skills": user.business_credentials.skills if user.business_credentials else None,
                     "description": user.business_credentials.description if user.business_credentials else None,
                     "businessInterests": user.business_credentials.businessInterests if user.business_credentials else None,
-                }
+                "photos": [photo.photo_url for photo in user.saved_photos] if user.saved_photos else [],
             }
         )
 
