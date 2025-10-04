@@ -2,7 +2,7 @@ from core.imports import ( base64,
     Flask, request, jsonify,
     JWTManager, get_jwt_identity, jwt_required,
     Swagger, load_dotenv,
-    datetime, timedelta, date, filetype, IntegrityError
+    datetime, timedelta, date, filetype, IntegrityError, SocketIO, emit
 )
 from core.config import Config
 from core.extensions import db, jwt, mail, swagger, cors, bcrypt, oauth
@@ -13,7 +13,10 @@ from routes.business import business_bp
 from routes.connection import connection_bp
 from routes.blog import blog_bp
 from routes.gallery import gallery_bp
+from routes.calls import call_bp
+load_dotenv()
 
+socketio = SocketIO(cors_allowed_origins="*")
 
 def create_app():
     app = Flask(__name__)
@@ -26,6 +29,7 @@ def create_app():
     cors.init_app(app)
     bcrypt.init_app(app)
     oauth.init_app(app)
+    socketio.init_app(app)
 
     app.register_blueprint(auth_bp)
     app.register_blueprint(love_bp)
@@ -33,11 +37,10 @@ def create_app():
     app.register_blueprint(connection_bp)
     app.register_blueprint(blog_bp)
     app.register_blueprint(gallery_bp)
+    app.register_blueprint(call_bp)
     return app
 
 app = create_app()
-load_dotenv()
-
 
 @app.route('/ping')
 def ping():
@@ -856,7 +859,11 @@ def prepopulate_temp_users():
 if __name__ == "__main__":
     with app.app_context():
         db.create_all()
-        prepopulate_temp_users()
-        seed_love_users()
-        seed_business_users()
-    app.run(debug=True)
+        try:
+            prepopulate_temp_users()
+            seed_love_users()
+            seed_business_users()
+        except Exception as e:
+            print(f"⚠️ Seed error: {e}")
+
+    socketio.run(app, host="0.0.0.0", port=5000, debug=True)

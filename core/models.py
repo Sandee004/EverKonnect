@@ -188,3 +188,17 @@ class BlogComment(db.Model):
 
     post_id = db.Column(db.Integer, db.ForeignKey('blog_post.id', ondelete="CASCADE"), nullable=False)
     user_id = db.Column(db.Integer, db.ForeignKey('user.id', ondelete="CASCADE"), nullable=False)
+
+
+class Call(db.Model):
+    __tablename__ = 'calls'
+
+    id = db.Column(db.Integer, primary_key=True)
+    caller_id = db.Column(db.Integer, db.ForeignKey('user.id', ondelete="CASCADE"), nullable=False)
+    receiver_id = db.Column(db.Integer, db.ForeignKey('user.id', ondelete="CASCADE"), nullable=False)
+    channel_name = db.Column(db.String(100), nullable=False)
+    status = db.Column(db.String(20), default="ringing")  # ringing | accepted | declined | ended
+    created_at = db.Column(db.DateTime, default=datetime.utcnow)
+
+    caller = db.relationship('User', foreign_keys=[caller_id], backref='outgoing_calls')
+    receiver = db.relationship('User', foreign_keys=[receiver_id], backref='incoming_calls')
