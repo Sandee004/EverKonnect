@@ -50,16 +50,18 @@ def send_otp_email(email, otp, purpose="verification"):
     send_email(email, subject, body)
 
 
-def send_sms_otp(phone, otp):
-    account_sid = "your_twilio_sid"
-    auth_token = "your_twilio_auth_token"
+def send_sms_otp(phone):
+    account_sid = os.getenv("TWILIO_ACCOUNT_SID")
+    auth_token = os.getenv("TWILIO_AUTH_TOKEN")
+    verify_sid = os.getenv("TWILIO_VERIFY_SID")
+
     client = Client(account_sid, auth_token)
 
-    client.messages.create(
-        body=f"Your verification code is {otp}.",
-        from_="+1234567890",  # your Twilio number
-        to=phone
+    verification = client.verify.v2.services(verify_sid).verifications.create(
+        to=phone,
+        channel="sms"
     )
+    return verification.status
 
 @auth_bp.route('/api/auth', methods=["POST"])
 def auth():
@@ -126,16 +128,15 @@ def auth():
             db.session.add(temp_user)
 
         # Generate OTP
-        otp = str(random.randint(100000, 999999))
-        print(otp)
-        temp_user.otp_code = otp
-        temp_user.otp_created_at = datetime.utcnow()
-
         # Attempt to send OTP
         if email:
+            otp = str(random.randint(100000, 999999))
             send_otp_email(email, otp)
+            temp_user.otp_code = otp
+            temp_user.otp_created_at = datetime.utcnow()
         elif phone:
-            send_sms_otp(phone, otp)
+            status = send_sms_otp(phone)
+            print(f"Twilio Verify status: {status}")
 
         # Only commit if OTP was sent successfully
         db.session.commit()
