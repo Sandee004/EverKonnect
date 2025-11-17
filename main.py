@@ -799,7 +799,67 @@ def show_temp_users():
 
 @app.route('/show_users')
 def show_users():
+    """
+    Get all users
+    ---
+    tags:
+      - User
+    summary: Retrieve all users
+    responses:
+      200:
+        description: List of users
+        content:
+          application/json:
+            schema:
+              type: array
+              items:
+                type: object
+    """
     users = User.query.all()
+    return jsonify([model_to_dict(user) for user in users])
+
+@app.route('/show_love_users')
+def show_love_users():
+    """
+    Get all users with LoveBasicInfo
+    ---
+    tags:
+      - User
+    summary: Retrieve all users that have love profile info
+    responses:
+      200:
+        description: List of users with love_basic_info
+        content:
+          application/json:
+            schema:
+              type: array
+              items:
+                type: object
+    """
+    #users = User.query.filter(User.love_basic_info.isnot(None)).all()
+    users = User.query.filter(User.account_type == "love").all()
+    return jsonify([model_to_dict(user) for user in users])
+
+@app.route('/show_business_users')
+def show_business_users():
+    """
+    Get all users with BusinessBasicInfo
+    ---
+    tags:
+      - User
+    summary: Retrieve all users that have business profile info
+    responses:
+      200:
+        description: List of users with business_basic_info
+        content:
+          application/json:
+            schema:
+              type: array
+              items:
+                type: object
+    """
+    #users = User.query.filter(User.business_basic_info.isnot(None)).all()
+    users = User.query.filter(User.account_type == " business").all()
     return jsonify([model_to_dict(user) for user in users])
 
 
