@@ -1,4 +1,4 @@
-from core.imports import time, os, request, uuid, jsonify, Blueprint, SocketIO
+from core.imports import time, os, request, uuid, jsonify, Blueprint, SocketIO, or_
 from core.models import db, Call
 from agora_token_builder import RtcTokenBuilder
 from flask_jwt_extended import jwt_required, get_jwt_identity
@@ -322,3 +322,79 @@ def end_call():
     print(f"📴 Call {call.id} ended by user {user_id}")
 
     return jsonify({"message": "Call ended"})
+
+
+@call_bp.route("/call/history", methods=["GET"])
+@jwt_required()
+def call_history():
+    """
+    Get call history for the current user
+    ---
+    tags:
+      - Calls
+    parameters:
+      - name: Authorization
+        in: header
+        description: JWT token
+        required: true
+        type: string
+    responses:
+      200:
+        description: List of past calls
+        schema:
+          type: array
+          items:
+            type: object
+            properties:
+              call_id:
+                type: integer
+              direction:
+                type: string
+                enum: [incoming, outgoing]
+              other_party:
+                type: string
+              status:
+                type: string
+              category:
+                type: string
+                description: derived status (picked, missed)
+              timestamp:
+                type: string
+    """
+    current_user_id = int(get_jwt_identity())
+
+    calls = Call.query.filter(
+        or_(Call.caller_id == current_user_id, Call.receiver_id == current_user_id)
+    ).order_by(Call.created_at.desc()).all()
+
+    history_data = []
+
+    for call in calls:
+        if call.caller_id == current_user_id:
+            direction = "outgoing"
+            other_user = call.receiver
+        else:
+            direction = "incoming"
+            other_user = call.caller
+
+        if call.status in ['accepted', 'ended']:
+            category = "picked"
+        elif call.status in ['declined', 'missed']:
+            category = "missed"
+        elif call.status == 'ringing':
+            category = "missed"
+        else:
+            category = "unknown"
+
+        history_data.append({
+            "call_id": call.id,
+            "direction": direction,
+            "other_party_id": other_user.id if other_user else None,
+            "other_party_name": other_user.username if other_user and hasattr(other_user, 'username') else "Unknown",
+            "status": call.status,
+            "category": category,
+            "created_at": call.created_at.isoformat()
+        })
+
+    return jsonify(history_data), 200
+
