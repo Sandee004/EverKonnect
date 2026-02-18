@@ -225,7 +225,7 @@ def verify_otp():
     db.session.delete(temp_user)
     db.session.commit()
 
-    access_token = create_access_token(identity=user.id, expires_delta=timedelta(hours=24))
+    access_token = create_access_token(identity=str(user.id), expires_delta=timedelta(hours=24))
     return jsonify({
         "message": "OTP verified successfully",
         "access_token": access_token,
