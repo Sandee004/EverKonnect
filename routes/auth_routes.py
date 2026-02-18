@@ -469,8 +469,8 @@ def login():
         print("Password mismatch")
         return jsonify({"error": "Invalid credentials"}), 401
 
-    access_token = create_access_token(identity=user.id, expires_delta=timedelta(hours=24))
-    return jsonify({"access_token": access_token, "user_id": user.id}), 200
+    access_token = create_access_token(identity=str(user.id), expires_delta=timedelta(hours=24))
+    return jsonify({"access_token": access_token, "user_id": user.id, "account_type": user.account_type}), 200
 
 
 @auth_bp.route('/api/user/profile', methods=['GET'])

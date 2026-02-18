@@ -859,7 +859,7 @@ def show_business_users():
                 type: object
     """
     #users = User.query.filter(User.business_basic_info.isnot(None)).all()
-    users = User.query.filter(User.account_type == " business").all()
+    users = User.query.filter(User.account_type == "business").all()
     return jsonify([model_to_dict(user) for user in users])
 
 
