@@ -477,7 +477,7 @@ def login():
 @jwt_required()
 def get_user_profile():
     """
-    Get current user profile
+    Get current user profile with all associated details
     ---
     tags:
       - User
@@ -486,61 +486,142 @@ def get_user_profile():
     parameters:
       - name: Authorization
         in: header
-        description: 'JWT token as: Bearer <your_token>'
+        description: JWT token as Bearer <your_token>
         required: true
-        schema:
-          type: string
-          example: "Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6..."
+        type: string
+        example: "Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6..."
     responses:
       200:
-        description: User profile retrieved successfully
+        description: Comprehensive user profile retrieved successfully
+        schema:
+          type: object
+          properties:
+            id:
+              type: integer
+            email:
+              type: string
+            phone:
+              type: string
+            username:
+              type: string
+            account_type:
+              type: string
+            profile_pic:
+              type: string
+              description: Base64 encoded image with MIME type prefix
+            personal_profile:
+              type: object
+              properties:
+                fullname: {type: string}
+                nickname: {type: string}
+                date_of_birth: {type: string, format: date}
+                age_range: {type: string}
+                marital_status: {type: string}
+                country_of_origin: {type: string}
+                tribe: {type: string}
+                current_location: {type: string}
+                skin_tone: {type: string}
+            business_profile:
+              type: object
+              properties:
+                business_name: {type: string}
+                business_address: {type: string}
+                business_links: {type: array, items: {type: string}}
+                city: {type: string}
+                state: {type: string}
+                country: {type: string}
+                sex: {type: string}
+                profession: {type: string}
+                years_of_experience: {type: integer}
+                skills: {type: string}
+                description: {type: string}
+                business_interests: {type: string}
+            personality_traits:
+              type: object
+              properties:
+                height: {type: string}
+                interests: {type: string}
+                hobbies: {type: string}
+                religion: {type: string}
+                education: {type: string}
+            photos:
+              type: array
+              items: {type: string}
+      401:
+        description: Unauthorized - Invalid or missing token
       404:
         description: User not found
     """
     current_user_id = get_jwt_identity()
-    user = User.query.get(current_user_id)
+    user = User.query.options(
+        db.joinedload(User.love_basic_info),
+        db.joinedload(User.business_basic_info),
+        db.joinedload(User.business_credentials),
+        db.joinedload(User.personality),
+        db.joinedload(User.matchpreference)
+    ).get(current_user_id)
 
     if not user:
         return jsonify({"error": "User not found"}), 404
 
-    # LoveBasicInfo is related as `user.love_basic_info` (because of uselist=False)
-    love_info = user.love_basic_info
-
-    image_format = None
+    # Image handling
+    mime_type = "image/jpeg"
     if user.profile_pic:
         try:
             image_bytes = base64.b64decode(user.profile_pic)
             kind = filetype.guess(image_bytes)
-            image_format = kind.extension if kind else None
+            if kind:
+                mime_type = f"image/{kind.extension}"
         except Exception:
-            image_format = None
-    
-    print("Base64 picture set here")
+            pass
 
-    mime_type = f"image/{image_format}" if image_format in ['jpeg', 'png'] else "image/jpeg"
+    love = user.love_basic_info
+    biz = user.business_basic_info
+    cred = user.business_credentials
+    pers = user.personality
+
     user_data = {
         "id": user.id,
         "email": user.email,
         "phone": user.phone,
-        "profile_pic": f"data:{mime_type};base64,{user.profile_pic}" if user.profile_pic else None,
         "username": user.username,
-        "fullname": love_info.fullname if love_info else None,
-        "nickname": love_info.nickname if love_info else None,
-        "date_of_birth": love_info.date_of_birth.isoformat() if love_info and love_info.date_of_birth else None,
-        "age_range": love_info.age_range if love_info else None,
-        "marital_status": love_info.marital_status if love_info else None,
-        "country_of_origin": love_info.country_of_origin if love_info else None,
-        "tribe": love_info.tribe if love_info else None,
-        "current_location": love_info.current_location if love_info else None,
-        "skin_tone": love_info.skin_tone if love_info else None,
-        "profession": user.business_credentials.profession if user.business_credentials else None,
-        "YearsOfExperience": user.business_credentials.YearsOfExperience if user.business_credentials else None,
-        "skills": user.business_credentials.skills if user.business_credentials else None,
-        "description": user.business_credentials.description if user.business_credentials else None,
-        "businessInterests": user.business_credentials.businessInterests if user.business_credentials else None,
-        "photos": [photo.photo_url for photo in user.saved_images] if user.saved_images else [],
+        "account_type": user.account_type,
+        "profile_pic": f"data:{mime_type};base64,{user.profile_pic}" if user.profile_pic else None,
+        "personal_profile": {
+            "fullname": love.fullname if love else None,
+            "nickname": love.nickname if love else None,
+            "date_of_birth": love.date_of_birth.isoformat() if love and love.date_of_birth else None,
+            "age_range": love.age_range if love else None,
+            "marital_status": love.marital_status if love else None,
+            "country_of_origin": love.country_of_origin if love else None,
+            "tribe": love.tribe if love else None,
+            "current_location": love.current_location if love else None,
+            "skin_tone": love.skin_tone if love else None,
+        },
+        "business_profile": {
+            "business_name": biz.businessName if biz else None,
+            "business_address": biz.businessAddress if biz else None,
+            "business_links": biz.links if biz else None,
+            "city": biz.city if biz else None,
+            "state": biz.state if biz else None,
+            "country": biz.country if biz else None,
+            "sex": biz.sex if biz else None,
+            "profession": cred.profession if cred else None,
+            "years_of_experience": cred.YearsOfExperience if cred else None,
+            "skills": cred.skills if cred else None,
+            "description": cred.description if cred else None,
+            "business_interests": cred.businessInterests if cred else None,
+        },
+        "personality_traits": {
+            "height": pers.height if pers else None,
+            "interests": pers.interest if pers else None,
+            "hobbies": pers.hobbies if pers else None,
+            "religion": pers.religion if pers else None,
+            "education": pers.education if pers else None,
+        },
+        "photos": [photo.photo_url for photo in user.saved_images]
     }
-    print("Sent data")
+
     return jsonify(user_data), 200
 
 
