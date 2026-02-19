@@ -600,6 +600,9 @@ def get_match_account(user_id):
     security:
       - Bearer: []
     parameters:
+      - name: Authorization
+        in: header
+        required: true
       - name: user_id
         in: path
         description: ID of the user to retrieve
@@ -919,11 +922,6 @@ def prepopulate_temp_users():
 if __name__ == "__main__":
     with app.app_context():
         db.create_all()
-        try:
-            prepopulate_temp_users()
-            seed_love_users()
-            seed_business_users()
-        except Exception as e:
-            print(f"⚠️ Seed error: {e}")
+        
 
     socketio.run(app, host="0.0.0.0", port=5000, debug=True)

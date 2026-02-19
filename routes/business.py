@@ -727,6 +727,117 @@ def get_users_with_business():
     return jsonify(result), 200
 
 
+@business_bp.route('/api/business/user/<int:user_id>', methods=['GET'])
+@jwt_required()
+def get_single_user_detail(user_id):
+    """
+    Get detailed profile of a specific business user
+    ---
+    tags:
+      - Business
+    security:
+      - Bearer: []
+    parameters:
+      - name: user_id
+        in: path
+        type: integer
+        required: true
+        description: ID of the user to retrieve
+    responses:
+      200:
+        description: Detailed user profile retrieved successfully
+      404:
+        description: User not found
+    """
+    # Fetch user with all related tables joined to avoid multiple queries
+    user = User.query.options(
+        db.joinedload(User.business_basic_info),
+        db.joinedload(User.business_credentials),
+        db.joinedload(User.love_basic_info),
+        db.joinedload(User.personality),
+        db.joinedload(User.saved_images)
+    ).get(user_id)
+
+    if not user:
+        return jsonify({"error": "User not found"}), 404
+
+    # Extracting relationship objects
+    b = user.business_basic_info
+    c = user.business_credentials
+    l = user.love_basic_info
+    p = user.personality
+
+    # Profile Picture Handling (Consistency with your profile route)
+    mime_type = "image/jpeg"
+    profile_pic_data = None
+    if user.profile_pic:
+        try:
+            import base64
+            import filetype
+            image_bytes = base64.b64decode(user.profile_pic)
+            kind = filetype.guess(image_bytes)
+            if kind:
+                mime_type = f"image/{kind.extension}"
+            profile_pic_data = f"data:{mime_type};base64,{user.profile_pic}"
+        except Exception:
+            profile_pic_data = None
+
+    result = {
+        "id": user.id,
+        "email": user.email,
+        "phone": user.phone,
+        "username": user.username,
+        "account_type": user.account_type,
+        "profile_pic": profile_pic_data,
+        "referral_points": user.referral_points,
+        
+        # Business Specific Info
+        "business_info": {
+            "businessName": b.businessName if b else None,
+            "businessAddress": b.businessAddress if b else None,
+            "fullname": b.fullname if b else None,
+            "country": b.country if b else None,
+            "state": b.state if b else None,
+            "city": b.city if b else None,
+            "language": b.language if b else None,
+            "sex": b.sex if b else None,
+            "DoB": b.DoB if b else None,
+            "links": b.links if b else [],
+            "isAnonymous": b.isAnonymous if b else False
+        } if b else None,
+
+        # Professional Credentials
+        "credentials": {
+            "profession": c.profession if c else None,
+            "YearsOfExperience": c.YearsOfExperience if c else None,
+            "skills": c.skills if c else None,
+            "description": c.description if c else None,
+            "businessInterests": c.businessInterests if c else None,
+        } if c else None,
+
+        # Personal/Love Info (if exists)
+        "personal_info": {
+            "nickname": l.nickname if l else None,
+            "marital_status": l.marital_status if l else None,
+            "tribe": l.tribe if l else None,
+            "skin_tone": l.skin_tone if l else None,
+        } if l else None,
+
+        # Personality & Interests
+        "personality": {
+            "interest": p.interest if p else None,
+            "hobbies": p.hobbies if p else None,
+            "religion": p.religion if p else None,
+            "education": p.education if p else None,
+        } if p else None,
+
+        # Media
+        "photos": [photo.photo_url for photo in user.saved_images]
+    }
+
+    return jsonify(result), 200
+
+    
 @business_bp.route('/messages/contacts', methods=['GET'])
 @jwt_required()
 def get_message_contacts():
