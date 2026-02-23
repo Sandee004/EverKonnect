@@ -328,48 +328,39 @@ def end_call():
 @jwt_required()
 def call_history():
     """
-    Get call history for the current user
+    Get call history split by Love and Business categories
     ---
     tags:
       - Calls
-    parameters:
-      - name: Authorization
-        in: header
-        description: JWT token
-        required: true
-        type: string
     responses:
       200:
-        description: List of past calls
+        description: Grouped call history
         schema:
-          type: array
-          items:
-            type: object
-            properties:
-              call_id:
-                type: integer
-              direction:
-                type: string
-                enum: [incoming, outgoing]
-              other_party:
-                type: string
-              status:
-                type: string
-              category:
-                type: string
-                description: derived status (picked, missed)
-              timestamp:
-                type: string
+          type: object
+          properties:
+            love_calls:
+              type: array
+              items: { type: object }
+            business_calls:
+              type: array
+              items: { type: object }
     """
+    # Ensure ID is treated as integer for the query
     current_user_id = int(get_jwt_identity())
 
+    # Fetch calls involving the user, joined with caller/receiver info
     calls = Call.query.filter(
         or_(Call.caller_id == current_user_id, Call.receiver_id == current_user_id)
     ).order_by(Call.created_at.desc()).all()
 
-    history_data = []
+    # Initialize categorized buckets
+    history = {
+        "love_calls": [],
+        "business_calls": []
+    }
 
     for call in calls:
+        # Determine if current user was the caller or receiver
         if call.caller_id == current_user_id:
             direction = "outgoing"
             other_user = call.receiver
@@ -377,24 +368,32 @@ def call_history():
             direction = "incoming"
             other_user = call.caller
 
+        # Determine Category (picked vs missed)
         if call.status in ['accepted', 'ended']:
             category = "picked"
-        elif call.status in ['declined', 'missed']:
-            category = "missed"
-        elif call.status == 'ringing':
-            category = "missed"
         else:
-            category = "unknown"
+            category = "missed"
 
-        history_data.append({
+        # Prepare the data object
+        call_entry = {
             "call_id": call.id,
             "direction": direction,
             "other_party_id": other_user.id if other_user else None,
-            "other_party_name": other_user.username if other_user and hasattr(other_user, 'username') else "Unknown",
+            "other_party_name": other_user.username if other_user else "Unknown User",
             "status": call.status,
             "category": category,
             "created_at": call.created_at.isoformat()
-        })
+        }
 
-    return jsonify(history_data), 200
+        # SORTING LOGIC: Based on the OTHER PARTY'S account type
+        # We strip() to handle the " business" vs "business" whitespace issue
+        other_type = other_user.account_type.strip() if other_user and other_user.account_type else "love"
 
+        if "business" in other_type.lower():
+            history["business_calls"].append(call_entry)
+        else:
+            history["love_calls"].append(call_entry)
+
+    return jsonify(history), 200
+
+    
