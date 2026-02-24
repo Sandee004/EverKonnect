@@ -112,74 +112,66 @@ def create_post():
 @jwt_required()
 def get_posts():
     """
-    Retrieve blog posts restricted to the authenticated user's account type.
+    Retrieve all blog posts split into Love and Business categories.
     ---
     tags:
       - BlogPosts
     security:
       - Bearer: []
-    parameters:
-      - name: Authorization
-        in: header
-        description: 'JWT token as: Bearer <your_token>'
-        required: true
-        schema:
-          type: string
     responses:
       200:
-        description: List of blog posts
-        content:
-          application/json:
-            schema:
+        description: Grouped list of blog posts
+        schema:
+          type: object
+          properties:
+            love_posts:
               type: array
-              items:
-                type: object
-                properties:
-                  id:
-                    type: integer
-                    example: 101
-                  title:
-                    type: string
-                    example: "My First Blog Post"
-                  content:
-                    type: string
-                    example: "This is the content of my blog post."
-                  author:
-                    type: string
-                    example: "johndoe"
-                  timestamp:
-                    type: string
-                    format: date-time
-                    example: "2025-06-27T14:32:00Z"
-                  likes:
-                    type: integer
-                    example: 5
+              items: { type: object }
+            business_posts:
+              type: array
+              items: { type: object }
     """
-    user_id = get_jwt_identity()
-    user = User.query.get(user_id)
+    # 1. Identity fix: Force Integer for DB lookup
+    current_user_id = int(get_jwt_identity())
+    user = User.query.get(current_user_id)
 
     if not user:
         return jsonify({"error": "User not found"}), 404
 
-    posts = (
+    # 2. Fetch all posts joined with authors and likes to avoid N+1 queries
+    all_posts = (
         BlogPost.query
-        .join(User)
-        .filter(User.account_type == user.account_type)
+        .join(User, BlogPost.user_id == User.id)
+        .options(db.joinedload(BlogPost.author), db.joinedload(BlogPost.likes))
         .order_by(BlogPost.timestamp.desc())
         .all()
     )
 
-    result = [{
-        'id': p.id,
-        'title': p.title,
-        'content': p.content,
-        'author': p.author.username,
-        'timestamp': p.timestamp.isoformat(),
-        'likes': len(p.likes)
-    } for p in posts]
+    # 3. Initialize result buckets
+    result = {
+        "love_posts": [],
+        "business_posts": []
+    }
+
+    for p in all_posts:
+        post_data = {
+            'id': p.id,
+            'title': p.title,
+            'content': p.content,
+            'author': p.author.username if p.author else "Deleted User",
+            'author_id': p.user_id,
+            'timestamp': p.timestamp.isoformat(),
+            'likes': len(p.likes)
+        }
+
+        author_type = p.author.account_type.strip().lower() if p.author and p.author.account_type else "love"
+
+        if "business" in author_type:
+            result["business_posts"].append(post_data)
+        else:
+            result["love_posts"].append(post_data)
 
     return jsonify(result), 200
-
 
 @blog_bp.route('/blog/<int:post_id>/like', methods=['POST'])
 @jwt_required()

@@ -838,67 +838,58 @@ def get_single_user_detail(user_id):
     return jsonify(result), 200
 
     
+
 @business_bp.route('/messages/contacts', methods=['GET'])
 @jwt_required()
 def get_message_contacts():
     """
-    Get list of users the current user has messaged with
+    Get list of users messaged with, split by Love and Business
     ---
     tags:
       - Messages
     security:
       - Bearer: []
-    parameters:
-      - name: Authorization
-        in: header
-        description: 'JWT token as: Bearer <your_token>'
-        required: true
-        schema:
-          type: string
-          example: "Bearer "
     responses:
       200:
-        description: List of users the authenticated user has interacted with via messages
+        description: Grouped contact list
         schema:
-          type: array
-          items:
-            type: object
-            properties:
-              id:
-                type: integer
-                example: 456
-              username:
-                type: string
-                example: "jane_doe"
-              email:
-                type: string
-                example: "jane@example.com"
-              profile_pic:
-                type: string
-                example: "data:image/jpeg;base64,/9j/4AAQSkZJRgABAQEASABIAAD..."
-      401:
-        description: Unauthorized - Missing or invalid JWT
+          type: object
+          properties:
+            love_contacts:
+              type: array
+              items: { type: object }
+            business_contacts:
+              type: array
+              items: { type: object }
     """
-    current_user_id = get_jwt_identity()
+    # 1. Identity fix: Force string from JWT to Integer for SQLAlchemy
+    current_user_id = int(get_jwt_identity())
     current_user = User.query.get(current_user_id)
-    print(current_user.account_type)
 
     if not current_user or not current_user.account_type:
         return jsonify({"error": "User does not belong to a valid account type"}), 403
 
-    # Get distinct contact IDs
+    # 2. Get all distinct contact IDs (both sent and received)
     sent_ids = db.session.query(Message.receiver_id).filter_by(sender_id=current_user_id)
     received_ids = db.session.query(Message.sender_id).filter_by(receiver_id=current_user_id)
-    contact_ids = {row[0] for row in sent_ids.union(received_ids).distinct().all()}
+    
+    # Union handles the distinctness for us
+    contact_ids = [row[0] for row in sent_ids.union(received_ids).all()]
 
-    # Only include contacts of same account type
-    contacts = User.query.filter(
-        User.id.in_(contact_ids),
-        User.account_type == current_user.account_type
-    ).all()
+    if not contact_ids:
+        return jsonify({"love_contacts": [], "business_contacts": []}), 200
 
-    result = []
+    # 3. Fetch all contact User objects
+    contacts = User.query.filter(User.id.in_(contact_ids)).all()
+
+    # 4. Initialize buckets
+    result = {
+        "love_contacts": [],
+        "business_contacts": []
+    }
+
     for user in contacts:
+        # Profile Picture logic
         profile_pic_data = None
         if user.profile_pic:
             try:
@@ -909,12 +900,20 @@ def get_message_contacts():
             except Exception:
                 profile_pic_data = None
 
-        result.append({
+        contact_data = {
             "id": user.id,
             "username": user.username,
             "email": user.email,
-            "profile_pic": profile_pic_data
-        })
+            "profile_pic": profile_pic_data,
+            "account_type": user.account_type
+        }
+
+        u_type = user.account_type.strip().lower() if user.account_type else "love"
+
+        if "business" in u_type:
+            result["business_contacts"].append(contact_data)
+        else:
+            result["love_contacts"].append(contact_data)
 
     return jsonify(result), 200
 
